@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "expert-teams/status.schema.json",
+  "title": "Phase status",
+  "description": "State of a phase or work package in docs/pipeline-status/<name>/<phase-id>.json. A phase is done when this file exists on baseBranch with status done.",
+  "type": "object",
+  "required": ["pipeline", "phase", "status"],
+  "additionalProperties": false,
+  "properties": {
+    "pipeline": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" },
+    "phase": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" },
+    "status": { "type": "string", "enum": ["done"] },
+    "rounds": { "type": "integer", "minimum": 0 },
+    "verdicts": {
+      "type": "object",
+      "additionalProperties": { "type": "string" }
+    },
+    "consults": {
+      "type": "object",
+      "description": "Number of consult questions per answering party, e.g. { \"controller\": 2, \"human\": 1, \"orchestrator\": 1 }.",
+      "additionalProperties": { "type": "integer", "minimum": 0 }
+    },
+    "decisions": { "type": "string" },
+    "finishedAt": { "type": "string", "minLength": 1 }
+  }
+}

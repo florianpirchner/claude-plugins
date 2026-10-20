@@ -1,0 +1,192 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "expert-teams/pipeline.schema.json",
+  "title": "Pipeline",
+  "description": "A builder/challenger pipeline in .claude/pipelines/<name>.json. Each phase is built by its build roles and checked by its review roles.",
+  "type": "object",
+  "required": ["schemaVersion", "name", "description", "rules", "phases"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "schemaVersion": { "type": "integer", "enum": [1] },
+    "name": { "$ref": "#/$defs/slug", "description": "Must match the file name without .json." },
+    "description": { "type": "string", "minLength": 1 },
+    "inputs": {
+      "description": "Files or folders every phase may read.",
+      "$ref": "#/$defs/paths"
+    },
+    "rules": { "$ref": "#/$defs/rules" },
+    "phases": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/phase" }
+    }
+  },
+  "$defs": {
+    "slug": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+    },
+    "model": {
+      "type": "string",
+      "enum": ["opus", "sonnet", "haiku"]
+    },
+    "models": {
+      "type": "object",
+      "description": "A missing entry means opus. sonnet and haiku apply only where they are set explicitly.",
+      "additionalProperties": false,
+      "properties": {
+        "build": { "$ref": "#/$defs/model" },
+        "review": { "$ref": "#/$defs/model" }
+      }
+    },
+    "humanInTheLoop": {
+      "type": "string",
+      "enum": ["autonomous", "as-needed", "always"],
+      "description": "Who answers consult questions and settles stalemates. autonomous: the agents and the orchestrator settle everything and record their assumptions. as-needed (default): the agents settle everything except the cases in rules.askHumanWhen, which go to the user. always: every consult question and every stalemate goes to the user."
+    },
+    "slugs": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/slug" }
+    },
+    "paths": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "texts": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "rules": {
+      "type": "object",
+      "required": ["maxRounds", "delivery", "baseBranch"],
+      "additionalProperties": false,
+      "properties": {
+        "maxRounds": { "type": "integer", "minimum": 1, "maximum": 10 },
+        "maxParallelAgents": { "type": "integer", "minimum": 1, "maximum": 16 },
+        "models": { "$ref": "#/$defs/models" },
+        "delivery": {
+          "type": "string",
+          "enum": ["pr-merge", "pr-open", "commit"],
+          "description": "pr-merge: one pull request per phase, merged right away. pr-open: one pull request per phase, a human merges. commit: merge the phase locally into baseBranch, no pull request."
+        },
+        "baseBranch": { "type": "string", "minLength": 1 },
+        "preCommit": {
+          "type": ["string", "null"],
+          "description": "Command that must succeed before every commit in code phases, e.g. npm run check. null if there is none."
+        },
+        "worktrees": {
+          "type": "boolean",
+          "description": "true: each phase runs in its own git worktree and phases run in parallel. false: phases run one after another in the main directory."
+        },
+        "readOnly": {
+          "description": "Paths no agent may change, e.g. the user's inputs.",
+          "$ref": "#/$defs/paths"
+        },
+        "notes": {
+          "description": "Further project rules in plain text, included in every agent task.",
+          "$ref": "#/$defs/texts"
+        },
+        "humanInTheLoop": { "$ref": "#/$defs/humanInTheLoop" },
+        "askHumanWhen": {
+          "description": "Only for humanInTheLoop as-needed: the cases that go to the user, in plain text, e.g. contradiction with the inputs, change of scope, prices and money amounts.",
+          "$ref": "#/$defs/texts"
+        },
+        "consult": {
+          "type": "object",
+          "description": "Consult relation: a role pauses on a side question, the orchestrator gets the answer and resumes the role with its full context.",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean", "description": "Default true." },
+            "maxPerRound": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 10,
+              "description": "How often one role may pause for questions in one round. Default 3."
+            }
+          }
+        }
+      }
+    },
+    "participant": {
+      "type": "object",
+      "required": ["agent", "mode", "task"],
+      "additionalProperties": false,
+      "properties": {
+        "agent": { "$ref": "#/$defs/slug", "description": "Name of an agent file in .claude/agents/." },
+        "mode": { "type": "string", "enum": ["build", "review"] },
+        "task": { "type": "string", "minLength": 1 },
+        "focus": { "$ref": "#/$defs/texts" },
+        "outputs": {
+          "description": "Required for build: the files the role creates.",
+          "$ref": "#/$defs/paths"
+        },
+        "consultWith": {
+          "description": "Roles the orchestrator asks first when this role has a consult question. Without it the orchestrator picks a fitting role of the pipeline.",
+          "$ref": "#/$defs/slugs"
+        }
+      }
+    },
+    "workPackages": {
+      "type": "object",
+      "required": ["from", "builderByType", "reviewersByType", "task", "reviewTask"],
+      "additionalProperties": false,
+      "properties": {
+        "from": {
+          "type": "string",
+          "minLength": 1,
+          "description": "JSON file with the work packages, produced by an earlier phase. Each package has id, type, dependsOn and the files it may change."
+        },
+        "builderByType": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/slug" }
+        },
+        "reviewersByType": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "minItems": 1,
+            "items": { "$ref": "#/$defs/slug" }
+          }
+        },
+        "task": { "type": "string", "minLength": 1 },
+        "reviewTask": { "type": "string", "minLength": 1 }
+      }
+    },
+    "phase": {
+      "type": "object",
+      "required": ["id", "goal", "dependsOn", "acceptance"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "#/$defs/slug" },
+        "goal": { "type": "string", "minLength": 1 },
+        "dependsOn": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/slug" }
+        },
+        "inputs": { "$ref": "#/$defs/paths" },
+        "code": {
+          "type": "boolean",
+          "description": "true marks a code phase: rules.preCommit runs before every commit."
+        },
+        "models": { "$ref": "#/$defs/models" },
+        "humanInTheLoop": {
+          "$ref": "#/$defs/humanInTheLoop",
+          "description": "Overrides rules.humanInTheLoop for this phase."
+        },
+        "participants": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/participant" }
+        },
+        "workPackages": { "$ref": "#/$defs/workPackages" },
+        "acceptance": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    }
+  }
+}
