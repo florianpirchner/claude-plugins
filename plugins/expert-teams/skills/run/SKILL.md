@@ -61,6 +61,8 @@ Without a remote use `<base>` instead of `origin/<base>`. If the worktree alread
 
 The working directory of a phase is called `<wd>` below. Set the tasks of the started phases to `in_progress`.
 
+**Run file.** Keep the live state in `.claude/expert-teams/runs/<name>.yaml` in the project directory (schema `<plugin>/schemas/run.schema.json`, local only, not committed). Every started phase gets an entry `<phase-id>: { status: running, round: 1 }`. Update `round` at the start of every round, set `status: waiting-for-user` with a one-line `question` while a question or stalemate waits for the user and back to `running` after the answer, and remove the entry when the phase is delivered. Delete the file when the run ends or stops. `/expert-teams:status` and the view in step 7 read it.
+
 ## 4. Rounds of a phase
 
 Repeat until accepted, at most `rules.maxRounds` times:
@@ -183,6 +185,11 @@ When a phase or package is accepted:
    decisions: docs/decisions/<name>/<id>.md
    finishedAt: <ISO time>
    ```
+   Then remove the phase from the run file and update the view of the pipeline in `<wd>`:
+   ```
+   node <plugin>/scripts/visualize.mjs <name> --root <wd> --run <project-dir>/.claude/expert-teams/runs/<name>.yaml
+   ```
+   It writes `docs/pipeline-status/<name>/README.md` (Mermaid chart, shown by GitHub) and `pipeline.html`; both go into the same commit. They are generated: on a merge conflict in them, run the command again instead of resolving by hand.
 3. Commit in `<wd>` (in code phases only after a successful `rules.preCommit`). Then, depending on `rules.delivery`:
    - `pr-merge`: push the branch, create a pull request into `<base>` and merge it right away.
      ```

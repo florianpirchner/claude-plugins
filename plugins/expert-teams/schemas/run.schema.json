@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "expert-teams/run.schema.json",
+  "title": "Run state",
+  "description": "Live state of a running pipeline in .claude/expert-teams/runs/<name>.yaml, written by /expert-teams:run. Local only, not committed. Phases that are done or not started are not listed.",
+  "type": "object",
+  "required": ["pipeline", "phases"],
+  "additionalProperties": false,
+  "properties": {
+    "pipeline": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" },
+    "updatedAt": { "type": "string", "minLength": 1 },
+    "phases": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["status"],
+        "additionalProperties": false,
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": ["running", "waiting-for-user"],
+            "description": "running: builders or reviewers are working. waiting-for-user: a consult question or stalemate is waiting for the user's answer."
+          },
+          "round": { "type": "integer", "minimum": 1 },
+          "question": { "type": "string", "description": "waiting-for-user only: what the user is asked, in one line." }
+        }
+      }
+    }
+  }
+}
