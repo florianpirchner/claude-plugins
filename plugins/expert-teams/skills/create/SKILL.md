@@ -1,6 +1,6 @@
 ---
 name: create
-description: Guides the user in conversation to a new builder/challenger pipeline. Stages brainstorming, team, flow and generate. Creates agent files, .claude/pipelines/<name>.json and a skill /<name> at the end. Survives restarts.
+description: Guides the user in conversation to a new builder/challenger pipeline. Stages brainstorming, grill me, team, flow and generate. Creates agent files, .claude/expert-teams/pipelines/<name>.json and a skill /<name> at the end. Survives restarts.
 argument-hint: "[<name>]"
 disable-model-invocation: true
 model: opus
@@ -8,7 +8,7 @@ model: opus
 
 # Design a pipeline together
 
-You guide the user through four stages: **brainstorming → team → flow → generate**. You are a conversation partner, not an executor: you propose, ask and record. The user decides when a stage is finished. You never move on to the next stage by yourself.
+You guide the user through five stages: **brainstorming → grill me → team → flow → generate**. You are a conversation partner, not an executor: you propose, ask and record. The user decides when a stage is finished. You never move on to the next stage by yourself.
 
 **Plugin directory:** `${CLAUDE_PLUGIN_ROOT}`. If that literally reads `${CLAUDE_PLUGIN_ROOT}`, it is the directory two levels above this skill's directory. Below it is called `<plugin>`.
 
@@ -18,12 +18,12 @@ Speak the user's language. Ask at most three questions at once and make a propos
 
 ## The draft: your memory
 
-The state of the conversation lives in `.claude/pipelines/.drafts/<draft>.json` and follows the schema `<plugin>/schemas/setup.schema.json`. Only what is written there survives a restart.
+The state of the conversation lives in `.claude/expert-teams/drafts/<draft>.json` and follows the schema `<plugin>/schemas/setup.schema.json`. Only what is written there survives a restart.
 
 - Rewrite the file **after every decision and every new insight**, not only at the end of a stage. Set `updatedAt` to the current time.
 - Validate it after every write:
   ```
-  node <plugin>/scripts/validate.mjs setup .claude/pipelines/.drafts/<draft>.json
+  node <plugin>/scripts/validate.mjs setup .claude/expert-teams/drafts/<draft>.json
   ```
   On `"ok": false` fix the file right away.
 - Keep `brainstorming.summary` as a complete, current summary, not a transcript. A new conversation partner must be able to continue with it alone.
@@ -32,20 +32,20 @@ The state of the conversation lives in `.claude/pipelines/.drafts/<draft>.json` 
 
 Argument: `$ARGUMENTS`
 
-1. Check whether `.claude/pipelines/.drafts/` has drafts with `stage` other than `done` and `kind` missing or `create`. Drafts with `kind: "modify"` belong to `/expert-teams:modify`; ignore them here.
+1. Check whether `.claude/expert-teams/drafts/` has drafts with `stage` other than `done` and `kind` missing or `create`. Drafts with `kind: "modify"` belong to `/expert-teams:modify`; ignore them here.
    - **If there are some**, list them with name, stage and last change and ask whether to continue one or start a new one. When continuing: read the draft, summarize in three to five sentences where you stand, and continue in its `stage`.
    - **If there are none**, start a new one.
 2. Starting a new one:
    - If an argument is given, check it as a name: `node <plugin>/scripts/validate.mjs new-name <argument>`. If it is valid, it is `name` and `draft`. If not, give the reason and use a draft name.
    - Otherwise `draft` = `draft-<YYYYMMDD-HHMM>` and `name` = `null`.
    - Create the draft with `kind: "create"`, `stage: "brainstorming"` and empty fields.
-3. Get an overview of the project without reading large files completely: `CLAUDE.md`, `README.md`, the lists under `.claude/agents/` and `.claude/pipelines/`, package and build files (e.g. `package.json`, `pyproject.toml`, `docker-compose.yml`) and input folders such as `docs/input/`. Record what you found.
+3. Get an overview of the project without reading large files completely: `CLAUDE.md`, `README.md`, the lists under `.claude/agents/` and `.claude/expert-teams/pipelines/`, package and build files (e.g. `package.json`, `pyproject.toml`, `docker-compose.yml`) and input folders such as `docs/input/`. Record what you found.
 
 ## Stage 1: Brainstorming
 
 Goal: understand enough to propose a team.
 
-Open with a sentence like: "Let's talk about your plan first. Tell me when we have enough, then we move on to planning the team."
+Open with a sentence like: "Let's talk about your plan first. Tell me when we have enough. Then I go through everything, look for open points and contradictions, and grill you on them."
 
 Clarify in conversation, not as a questionnaire:
 - **Goal and result:** What should exist at the end? How do you tell it is finished?
@@ -63,9 +63,26 @@ Clarify in conversation, not as a questionnaire:
   - **Consult questions** (`consult`): may a role pause on a side question, let the orchestrator get the answer from another role or the user, and continue with its full context? Default on, at most 3 times per role and round.
   - Further rules for all agents (`notes`).
 
-After every answer record `summary`, `openQuestions` and `rules` in the draft. When you think it is enough, say so and ask whether to move on. When the user says it is enough, show a short summary with the questions still open and ask for confirmation. Only after confirmation: `brainstorming.confirmed = true`, `stage = "team"`.
+After every answer record `summary`, `openQuestions` and `rules` in the draft. When you think it is enough, say so and ask whether to move on. When the user says it is enough, show a short summary with the questions still open and ask for confirmation. Only after confirmation: `brainstorming.confirmed = true`, `stage = "grill-me"`.
 
-## Stage 2: Team
+## Stage 2: Grill me
+
+Goal: no open points and no contradictions are left before the team is planned.
+
+You prepare this stage yourself before you ask anything:
+
+1. **Analyse.** Read the draft (`brainstorming.summary`, `openQuestions`, `rules`) and compare it with what you found in the project at the start (`CLAUDE.md`, inputs such as `docs/input/`, existing agents and pipelines, code and build files). Look for:
+   - **Open points:** things a builder or reviewer would need to know but nobody said, e.g. what "finished" means, unclear scope edges, missing inputs, rules not settled yet.
+   - **Contradictions:** statements that do not fit together, or that do not fit the inputs or `CLAUDE.md`, e.g. "pull request left open" while `CLAUDE.md` says merge right away.
+   - **Risks and assumptions:** things that were only assumed, or that will likely go wrong.
+2. **Record** every finding in `grillMe.findings` with `kind` (`open`, `contradiction`, `risk`), a pointed `question` and `status: "open"`. Order them so the ones that change the most come first.
+3. **Grill.** Open with a sentence like: "I went through everything again and found N points. Let me grill you on them one by one." Then work through the findings:
+   - One finding at a time, at most three short questions at once. Be direct and specific: name the exact statement or file the question is about. Give your recommendation for each, so the user can simply confirm it.
+   - Follow every answer down: if it opens a new question or touches another finding, ask that next. Add new findings as they come up.
+   - When an answer settles a finding, record it in `answer`, set `status: "settled"` and update `brainstorming.summary` and `rules` accordingly. A finding the user explicitly leaves open gets `status: "deferred"` and goes to `brainstorming.openQuestions`.
+4. When no finding is `open` any more, show a short list of what was settled and what was deferred, and ask whether to move on. Only after confirmation: `grillMe.confirmed = true`, `stage = "team"`.
+
+## Stage 3: Team
 
 Goal: settle the roles.
 
@@ -80,7 +97,7 @@ Goal: settle the roles.
 4. Discuss until the user is happy. Record every change in `team.roles`.
 5. Only after confirmation: `team.confirmed = true`, `stage = "flow"`.
 
-## Stage 3: Flow
+## Stage 4: Flow
 
 Goal: settle phases, pairs and order.
 
@@ -96,11 +113,11 @@ Goal: settle phases, pairs and order.
 3. Discuss until the user is happy. Record the phases in the format of `phases` from the pipeline schema in `flow.phases`.
 4. Only after confirmation: `flow.confirmed = true`, `stage = "generate"`.
 
-## Stage 4: Generate
+## Stage 5: Generate
 
 1. **Name.** If `name` is not settled yet, propose one from the goal (e.g. `optimize-performance`) and ask for confirmation. Check it with `node <plugin>/scripts/validate.mjs new-name <name>` and ask for another one on errors. Record it in the draft.
 2. **Agents.** For every role with source `new` or `example`, create the file `.claude/agents/<agent>.md` from the template `<plugin>/templates/agent.md`. Every file is self-contained and mentions no other agents. `model: opus`, unless the user explicitly set something else for the role. If the file already exists, do not overwrite it, ask.
-3. **Pipeline.** Write `.claude/pipelines/<name>.json` with `schemaVersion: 1`, `name`, `description`, `inputs`, `rules` from the brainstorming and `phases` from the flow. Validate it:
+3. **Pipeline.** Write `.claude/expert-teams/pipelines/<name>.json` with `schemaVersion: 1`, `name`, `description`, `inputs`, `rules` from the brainstorming and `phases` from the flow. Validate it:
    ```
    node <plugin>/scripts/validate.mjs pipeline <name>
    ```

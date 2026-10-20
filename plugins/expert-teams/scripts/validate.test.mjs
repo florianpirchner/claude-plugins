@@ -13,8 +13,8 @@ const AGENTS = join(PLUGIN, "examples", "agents");
 
 function project(pipeline, name = pipeline.name) {
   const root = mkdtempSync(join(tmpdir(), "expert-teams-"));
-  mkdirSync(join(root, ".claude", "pipelines"), { recursive: true });
-  writeFileSync(join(root, ".claude", "pipelines", `${name}.json`), JSON.stringify(pipeline));
+  mkdirSync(join(root, ".claude", "expert-teams", "pipelines"), { recursive: true });
+  writeFileSync(join(root, ".claude", "expert-teams", "pipelines", `${name}.json`), JSON.stringify(pipeline));
   return root;
 }
 
@@ -137,6 +137,32 @@ test("setup checks the draft", () => {
   writeFileSync(file, JSON.stringify(draft));
   assert.equal(run(["setup", file]).ok, true);
   writeFileSync(file, JSON.stringify({ ...draft, stage: "finished" }));
+  assert.equal(run(["setup", file]).ok, false);
+});
+
+test("setup checks the grill-me findings", () => {
+  const root = mkdtempSync(join(tmpdir(), "expert-teams-"));
+  const file = join(root, "draft.json");
+  const draft = {
+    draft: "draft-1",
+    name: null,
+    stage: "grill-me",
+    updatedAt: "2026-10-20T08:30:00Z",
+    brainstorming: { summary: "Goal", openQuestions: [], confirmed: true },
+    grillMe: {
+      findings: [
+        { kind: "contradiction", question: "PR left open, but CLAUDE.md says merge right away?", status: "open" },
+        { kind: "open", question: "What does finished mean?", answer: "All tests green", status: "settled" },
+      ],
+    },
+    team: { roles: [] },
+    flow: { phases: [] },
+  };
+  writeFileSync(file, JSON.stringify(draft));
+  assert.equal(run(["setup", file]).ok, true);
+  const bad = structuredClone(draft);
+  bad.grillMe.findings[0].kind = "question";
+  writeFileSync(file, JSON.stringify(bad));
   assert.equal(run(["setup", file]).ok, false);
 });
 

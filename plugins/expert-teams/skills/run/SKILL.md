@@ -1,6 +1,6 @@
 ---
 name: run
-description: Runs a builder/challenger pipeline from .claude/pipelines/<name>.json. Starts the agents phase by phase, has results reviewed and revised, settles consult questions and delivers every finished phase. Use only when the user asks for it explicitly or a pipeline skill invokes it.
+description: Runs a builder/challenger pipeline from .claude/expert-teams/pipelines/<name>.json. Starts the agents phase by phase, has results reviewed and revised, settles consult questions and delivers every finished phase. Use only when the user asks for it explicitly or a pipeline skill invokes it.
 argument-hint: "<name> [status | <phase-id>] [--autonomous | --as-needed | --always]"
 model: opus
 ---
@@ -28,7 +28,7 @@ node <plugin>/scripts/validate.mjs args -- '<word1>' '<word2>' ...
   - `mode: phase`: run only this one phase, provided its dependencies are done
   - `humanInTheLoop`: a level given for this run, or `null`
 
-Below, `<name>` is the checked name and `P` is the file `.claude/pipelines/<name>.json`.
+Below, `<name>` is the checked name and `P` is the file `.claude/expert-teams/pipelines/<name>.json`.
 
 ## 1. Determine the state
 

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "expert-teams/setup.schema.json",
   "title": "Draft of /expert-teams:create or /expert-teams:modify",
-  "description": "State of the guided dialog in .claude/pipelines/.drafts/<draft>.json. Rewritten after every decision so a restart continues there.",
+  "description": "State of the guided dialog in .claude/expert-teams/drafts/<draft>.json. Rewritten after every decision so a restart continues there.",
   "type": "object",
   "required": ["draft", "stage", "updatedAt", "brainstorming", "team", "flow"],
   "additionalProperties": false,
@@ -25,7 +25,7 @@
     },
     "stage": {
       "type": "string",
-      "enum": ["brainstorming", "team", "flow", "generate", "done"]
+      "enum": ["brainstorming", "grill-me", "team", "flow", "generate", "done"]
     },
     "updatedAt": { "type": "string", "minLength": 1 },
     "brainstorming": {
@@ -38,6 +38,33 @@
         "rules": {
           "type": "object",
           "description": "Project rules settled so far, in the format of rules from pipeline.schema.json."
+        },
+        "confirmed": { "type": "boolean" }
+      }
+    },
+    "grillMe": {
+      "type": "object",
+      "description": "Stage grill me: open points, contradictions and risks the orchestrator found in the brainstorming, and how they were settled.",
+      "required": ["findings"],
+      "additionalProperties": false,
+      "properties": {
+        "findings": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["kind", "question", "status"],
+            "additionalProperties": false,
+            "properties": {
+              "kind": { "type": "string", "enum": ["open", "contradiction", "risk"] },
+              "question": { "type": "string", "minLength": 1 },
+              "answer": { "type": "string" },
+              "status": {
+                "type": "string",
+                "enum": ["open", "settled", "deferred"],
+                "description": "deferred: the user explicitly leaves it open; it is also listed in brainstorming.openQuestions."
+              }
+            }
+          }
         },
         "confirmed": { "type": "boolean" }
       }

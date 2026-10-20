@@ -2,7 +2,7 @@
 // Validation script of the pipeline plugin. No dependencies, only Node.js >= 18.
 //
 //   node validate.mjs args <word> [<word> ...]   split and check the arguments of /expert-teams:run
-//   node validate.mjs pipeline <name>            check .claude/pipelines/<name>.json and its status files
+//   node validate.mjs pipeline <name>            check .claude/expert-teams/pipelines/<name>.json and its status files
 //   node validate.mjs new-name <name>            check whether a new pipeline name is valid and free
 //   node validate.mjs setup <file>               check a create or modify draft against the schema
 //   node validate.mjs list                       list the existing pipelines
@@ -250,7 +250,7 @@ function checkStatusFiles(root, name, phaseIds) {
 // ---------- Commands ----------
 
 function listPipelines(root) {
-  const dir = join(root, ".claude", "pipelines");
+  const dir = join(root, ".claude", "expert-teams", "pipelines");
   if (!existsSync(dir)) return [];
   return readdirSync(dir)
     .filter((f) => f.endsWith(".json") && statSync(join(dir, f)).isFile())
@@ -280,7 +280,7 @@ function cmdArgs(root, allWords) {
   if (second === undefined) return { ok: true, name, mode: "all", phase: null, humanInTheLoop };
   if (second === "status") return { ok: true, name, mode: "status", phase: null, humanInTheLoop };
   const errors = [];
-  const pipeline = readJson(join(root, ".claude", "pipelines", `${name}.json`), errors);
+  const pipeline = readJson(join(root, ".claude", "expert-teams", "pipelines", `${name}.json`), errors);
   const phaseIds = Array.isArray(pipeline?.phases) ? pipeline.phases.map((p) => p.id) : [];
   if (!phaseIds.includes(second)) {
     return { ...fail(`"${second}" is neither "status" nor a phase of ${name}.`), phases: phaseIds };
@@ -290,7 +290,7 @@ function cmdArgs(root, allWords) {
 
 function cmdPipeline(root, name, extraDirs) {
   if (!name || !SLUG.test(name)) return { ok: false, errors: [`Invalid name "${name ?? ""}"`] };
-  const file = join(root, ".claude", "pipelines", `${name}.json`);
+  const file = join(root, ".claude", "expert-teams", "pipelines", `${name}.json`);
   if (!existsSync(file)) return { ok: false, errors: [`${file} does not exist`], pipelines: listPipelines(root) };
   const errors = [];
   const pipeline = readJson(file, errors);
@@ -309,7 +309,7 @@ function cmdNewName(root, name) {
   if (!name || !SLUG.test(name)) {
     errors.push(`"${name ?? ""}" is not a valid name: only lowercase letters, digits and single hyphens, e.g. optimize-performance`);
   } else {
-    if (existsSync(join(root, ".claude", "pipelines", `${name}.json`))) errors.push(`.claude/pipelines/${name}.json already exists`);
+    if (existsSync(join(root, ".claude", "expert-teams", "pipelines", `${name}.json`))) errors.push(`.claude/expert-teams/pipelines/${name}.json already exists`);
     if (existsSync(join(root, ".claude", "skills", name))) errors.push(`A skill .claude/skills/${name}/ already exists`);
     if (existsSync(join(root, "docs", "pipeline-status", name))) errors.push(`docs/pipeline-status/${name}/ already exists`);
   }
@@ -323,8 +323,8 @@ function cmdSetup(root, file) {
   if (data !== undefined) errors.push(...checkAgainst("setup.schema.json", data, "draft"));
   if (!errors.length && data.kind === "modify") {
     if (!data.name) errors.push("draft: a modify draft needs the name of the pipeline it changes");
-    else if (!existsSync(join(root, ".claude", "pipelines", `${data.name}.json`))) {
-      errors.push(`draft: .claude/pipelines/${data.name}.json does not exist`);
+    else if (!existsSync(join(root, ".claude", "expert-teams", "pipelines", `${data.name}.json`))) {
+      errors.push(`draft: .claude/expert-teams/pipelines/${data.name}.json does not exist`);
     }
   }
   return { ok: errors.length === 0, errors };
