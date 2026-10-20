@@ -58,7 +58,7 @@ Record `summary`, `openQuestions`, `rules` and `changes` in the draft. Only afte
 Same three parts as stage 2 of `/expert-teams:create`, limited to what the change touches:
 - **Technology:** only if the change touches the stack or the hosting. Then read `docs/input/tech-stack.md`, ask "fixed idea or advice?" as in create, and update the file with the user's consent.
 - **Open points and contradictions:** analyse the draft against the current pipeline, its status files, `CLAUDE.md` and the inputs, record them in `grillMe.findings` and grill until none is `open`. Look especially for changes that contradict done phases, other pipelines that use the same agents, and rules that no longer fit.
-- **Base questions:** show the current `rules` as the confirm list, with the changed values marked. If the pipeline has no `language` yet, propose `code: en, docs: en, ui: en`.
+- **Base questions:** show the current `rules` as the confirm list, with the changed values marked. If the pipeline has no `language` yet, propose `code: en, docs: en, ui: en`. If it has no `integrationBranch`, show the default `expert-teams/<name>`; if phases of this pipeline are already merged into the target branch, say that the next run continues on the integration branch, created from the current target branch, so nothing is lost.
 
 Only after confirmation: `grillMe.confirmed = true`, `stage = "team"`.
 

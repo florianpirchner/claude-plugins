@@ -1,6 +1,6 @@
 {
   "name": "expert-teams",
-  "version": "0.10.0",
+  "version": "0.11.0",
   "description": "Guided design, change and execution of builder/challenger pipelines with subagents, consult questions and a configurable human in the loop: /expert-teams:create, /expert-teams:modify, /expert-teams:run, /expert-teams:status.",
   "author": {
     "name": "Flo"
