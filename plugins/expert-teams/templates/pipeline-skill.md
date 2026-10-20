@@ -7,7 +7,7 @@ disable-model-invocation: true
 
 # Pipeline <name>
 
-`/expert-teams:create` from the plugin `expert-teams` generated this file. It is only a shortcut: the pipeline lives in `.claude/pipelines/<name>.json`, the procedure in the plugin's `expert-teams:run` skill.
+`/expert-teams:create` from the plugin `expert-teams` generated this file. It is only a shortcut: the pipeline lives in `.claude/expert-teams/pipelines/<name>.json`, the procedure in the plugin's `expert-teams:run` skill.
 
 Argument: `$ARGUMENTS`
 

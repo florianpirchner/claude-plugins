@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "expert-teams/pipeline.schema.json",
   "title": "Pipeline",
-  "description": "A builder/challenger pipeline in .claude/pipelines/<name>.json. Each phase is built by its build roles and checked by its review roles.",
+  "description": "A builder/challenger pipeline in .claude/expert-teams/pipelines/<name>.json. Each phase is built by its build roles and checked by its review roles.",
   "type": "object",
   "required": ["schemaVersion", "name", "description", "rules", "phases"],
   "additionalProperties": false,

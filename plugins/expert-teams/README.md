@@ -6,7 +6,7 @@ The Claude Code plugin `expert-teams` builds expert teams: it guides you in conv
 
 | Command | What it does |
 |---|---|
-| `/expert-teams:create [<name>]` | Guided dialog in four stages: brainstorming, team, flow, generate. You decide when a stage is finished. At the end it creates agent files, `.claude/pipelines/<name>.json` and a skill `/<name>`. |
+| `/expert-teams:create [<name>]` | Guided dialog in five stages: brainstorming, grill me, team, flow, generate. In grill me the orchestrator first analyses the brainstorming for open points and contradictions, then asks you about them one by one. You decide when a stage is finished. At the end it creates agent files, `.claude/expert-teams/pipelines/<name>.json` and a skill `/<name>`. |
 | `/expert-teams:modify <name>` | Guided change of an existing pipeline: add or remove roles and phases, change pairs, order or rules. Same stages and draft as creating, but starting from the current pipeline. Shows the differences before it writes. |
 | `/expert-teams:run <name> [status \| <phase-id>] [--autonomous \| --as-needed \| --always]` | Runs a pipeline: all open phases, only the state, or exactly one phase. The flag overrides the human-in-the-loop level for this run. |
 | `/expert-teams:status [<name>]` | Shows the state of all pipelines or one, and open drafts. Changes nothing. |
@@ -29,8 +29,8 @@ Requirements in the target project: git, Node.js 18 or later for the validation 
 
 | Path | Content |
 |---|---|
-| `.claude/pipelines/<name>.json` | The pipeline: rules, phases, roles, tasks. Schema: `schemas/pipeline.schema.json`. |
-| `.claude/pipelines/.drafts/<draft>.json` | State of `/expert-teams:create` and `/expert-teams:modify`. Written after every decision so a restart continues there. |
+| `.claude/expert-teams/pipelines/<name>.json` | The pipeline: rules, phases, roles, tasks. Schema: `schemas/pipeline.schema.json`. |
+| `.claude/expert-teams/drafts/<draft>.json` | State of `/expert-teams:create` and `/expert-teams:modify`. Written after every decision so a restart continues there. |
 | `.claude/agents/<agent>.md` | The roles. One self-contained file per role. |
 | `.claude/skills/<name>/SKILL.md` | The shortcut `/<name>`. |
 | `docs/pipeline-status/<name>/<phase-id>.json` | Finished phases. A phase is done when its file is on the target branch. |
