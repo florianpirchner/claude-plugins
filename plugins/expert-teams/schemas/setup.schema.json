@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "expert-teams/setup.schema.json",
+  "title": "Draft of /expert-teams:create or /expert-teams:modify",
+  "description": "State of the guided dialog in .claude/pipelines/.drafts/<draft>.json. Rewritten after every decision so a restart continues there.",
+  "type": "object",
+  "required": ["draft", "stage", "updatedAt", "brainstorming", "team", "flow"],
+  "additionalProperties": false,
+  "properties": {
+    "draft": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" },
+    "kind": {
+      "type": "string",
+      "enum": ["create", "modify"],
+      "description": "create (default): a new pipeline from /expert-teams:create. modify: a change of the existing pipeline name from /expert-teams:modify."
+    },
+    "changes": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "modify only: the agreed changes against the current pipeline, one line each, e.g. 'add phase load-test after backend'."
+    },
+    "name": {
+      "type": ["string", "null"],
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+      "description": "Chosen pipeline name, once it is settled."
+    },
+    "stage": {
+      "type": "string",
+      "enum": ["brainstorming", "team", "flow", "generate", "done"]
+    },
+    "updatedAt": { "type": "string", "minLength": 1 },
+    "brainstorming": {
+      "type": "object",
+      "required": ["summary", "openQuestions"],
+      "additionalProperties": false,
+      "properties": {
+        "summary": { "type": "string", "description": "Running summary: goal, scope, non-goals, inputs, technology, constraints." },
+        "openQuestions": { "type": "array", "items": { "type": "string" } },
+        "rules": {
+          "type": "object",
+          "description": "Project rules settled so far, in the format of rules from pipeline.schema.json."
+        },
+        "confirmed": { "type": "boolean" }
+      }
+    },
+    "team": {
+      "type": "object",
+      "required": ["roles"],
+      "additionalProperties": false,
+      "properties": {
+        "roles": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["agent", "purpose", "source"],
+            "additionalProperties": false,
+            "properties": {
+              "agent": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" },
+              "purpose": { "type": "string" },
+              "source": {
+                "type": "string",
+                "enum": ["existing", "new", "example"],
+                "description": "existing: the agent file is already in the project. new: it will be created. example: it will be derived from one of the plugin's example roles."
+              },
+              "tools": { "type": "string" },
+              "notes": { "type": "string" }
+            }
+          }
+        },
+        "confirmed": { "type": "boolean" }
+      }
+    },
+    "flow": {
+      "type": "object",
+      "required": ["phases"],
+      "additionalProperties": false,
+      "properties": {
+        "phases": {
+          "type": "array",
+          "description": "Phases in the format of phases from pipeline.schema.json, may still be incomplete."
+        },
+        "confirmed": { "type": "boolean" }
+      }
+    }
+  }
+}

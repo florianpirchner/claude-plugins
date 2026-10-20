@@ -1,0 +1,20 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "florianpirchner",
+  "description": "Flo's Claude Code plugins.",
+  "owner": {
+    "name": "Flo"
+  },
+  "plugins": [
+    {
+      "name": "expert-teams",
+      "description": "Guided design, change and execution of builder/challenger pipelines with subagents, consult questions and a configurable human in the loop.",
+      "author": {
+        "name": "Flo"
+      },
+      "category": "development",
+      "source": "./plugins/expert-teams",
+      "homepage": "https://github.com/florianpirchner/claude-plugins/tree/main/plugins/expert-teams"
+    }
+  ]
+}
