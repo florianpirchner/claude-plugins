@@ -6,6 +6,7 @@
 //   node validate.mjs new-name <name>            check whether a new pipeline name is valid and free
 //   node validate.mjs setup <file>               check a create or modify draft against the schema
 //   node validate.mjs list                       list the existing pipelines
+//   node validate.mjs checkpoints <name>         find unfinished phases on pipeline/<name>/* branches (run git fetch first)
 //
 // Options: --root <project-dir> (default: current directory)
 //          --agents-dir <dir> (additional directory with agent files, may be repeated)
@@ -13,6 +14,7 @@
 // Exit code 0 = fine, 1 = errors found, 2 = wrong usage.
 // The output is JSON so the skill can read it unambiguously.
 
+import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -260,6 +262,81 @@ function listPipelines(root) {
     .sort();
 }
 
+// ---------- Checkpoints on phase branches ----------
+
+function git(root, args) {
+  try {
+    return execFileSync("git", args, { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
+  } catch {
+    return null;
+  }
+}
+
+function branchRefs(root, name) {
+  const refs = new Map();
+  for (const [prefix, kind] of [[`refs/remotes/origin/pipeline/${name}/`, "remote"], [`refs/heads/pipeline/${name}/`, "local"]]) {
+    const out = git(root, ["for-each-ref", "--format=%(refname)", prefix]);
+    for (const ref of out ? out.split("\n") : []) {
+      const id = ref.slice(prefix.length);
+      if (!SLUG.test(id)) continue;
+      refs.set(id, { ...refs.get(id), [kind]: ref });
+    }
+  }
+  return refs;
+}
+
+// The newer of the local and the remote branch: local only if it has commits the remote lacks.
+function newestRef({ local, remote }, root) {
+  if (!remote) return local;
+  if (!local) return remote;
+  const ahead = git(root, ["rev-list", "--count", `${remote}..${local}`]);
+  return ahead && ahead !== "0" ? local : remote;
+}
+
+function cmdCheckpoints(root, name) {
+  if (!name || !SLUG.test(name)) return { ok: false, errors: [`Invalid name "${name ?? ""}"`] };
+  const file = join(root, ".claude", "expert-teams", "pipelines", `${name}.yaml`);
+  if (!existsSync(file)) return { ok: false, errors: [`${file} does not exist`], pipelines: listPipelines(root) };
+  if (git(root, ["rev-parse", "--git-dir"]) === null) return { ok: false, errors: [`${root} is not a git repository`] };
+  const errors = [];
+  const pipeline = readYaml(file, errors);
+  const phaseIds = Array.isArray(pipeline?.phases) ? pipeline.phases.map((p) => p.id) : [];
+  const { done } = checkStatusFiles(root, name, phaseIds);
+  const checkpoints = [];
+  for (const [id, refs] of [...branchRefs(root, name)].sort(([a], [b]) => a.localeCompare(b))) {
+    const phase = phaseIds.find((p) => id === p || id.startsWith(`${p}-`));
+    if (!phase || done.includes(id)) continue;
+    const ref = newestRef(refs, root);
+    const entry = { id, phase, branch: `pipeline/${name}/${id}`, ref, pushed: ref === refs.remote };
+    const text = git(root, ["show", `${ref}:docs/pipeline-status/${name}/${id}.yaml`]);
+    if (text === null) {
+      checkpoints.push({ ...entry, status: "no-checkpoint" });
+      continue;
+    }
+    let data;
+    try {
+      data = load(text, { schema: JSON_SCHEMA });
+    } catch (e) {
+      errors.push(`${ref}: checkpoint is not valid YAML (${e.message})`);
+      continue;
+    }
+    const schemaErrors = checkAgainst("status.schema.json", data, `${ref}:${id}.yaml`);
+    if (schemaErrors.length) {
+      errors.push(...schemaErrors);
+      continue;
+    }
+    checkpoints.push({
+      ...entry,
+      status: data.status,
+      round: data.round ?? null,
+      step: data.step ?? null,
+      findings: data.findings ?? [],
+      question: data.question ?? null,
+    });
+  }
+  return { ok: errors.length === 0, errors, checkpoints };
+}
+
 function cmdList(root) {
   return { ok: true, pipelines: listPipelines(root) };
 }
@@ -358,8 +435,10 @@ export function run(argv) {
       return cmdSetup(opts.root, rest[0]);
     case "list":
       return cmdList(opts.root);
+    case "checkpoints":
+      return cmdCheckpoints(opts.root, rest[0]);
     default:
-      return { ok: false, usage: true, errors: ["Usage: node validate.mjs args|pipeline|new-name|setup|list ..."] };
+      return { ok: false, usage: true, errors: ["Usage: node validate.mjs args|pipeline|new-name|setup|list|checkpoints ..."] };
   }
 }
 
