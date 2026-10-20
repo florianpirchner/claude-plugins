@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Writes a view of a pipeline and its state. Only Node.js >= 18, reuses the YAML reading of validate.mjs.
 //
-//   node visualize.mjs <name> [--root <project-dir>] [--out <dir>] [--run <file>]
+//   node visualize.mjs <name> [--root <project-dir>] [--out <dir>] [--run <file>] [--ref <git-ref> | --working-tree]
 //
 // Writes into <out> (default: docs/pipeline-status/<name>/):
 //   README.md      Mermaid flowchart top to bottom (GitHub shows it when you open the folder),
@@ -12,14 +12,17 @@
 // State per phase: done (status file with status done), running or waiting-for-user
 // (.claude/expert-teams/runs/<name>.yaml, written by /expert-teams:run), startable (all
 // dependencies done) or open. --run reads the run file from elsewhere, e.g. the project directory
-// while --root is a worktree. The output is JSON, exit code 0 = written, 1 = error.
+// while --root is a worktree. Status files come from the target branch (see targetBranch in validate.mjs)
+// unless it is checked out; --ref names another ref, --working-tree forces the files on disk.
+// The output is JSON, exit code 0 = written, 1 = error.
 
-import { existsSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { checkAgainst, readYaml } from "./validate.mjs";
+import { checkAgainst, readStatusFiles, readYaml, statusRef, targetBranch } from "./validate.mjs";
 
 const SLUG = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+const WORKING_TREE = Symbol("working tree");
 
 // Mermaid class names without hyphens.
 const MERMAID_CLASS = { done: "done", running: "running", "waiting-for-user": "waiting", startable: "startable", open: "open" };
@@ -34,12 +37,9 @@ const STATE_TEXT = {
 
 // ---------- Reading ----------
 
-function readDone(root, name, errors) {
-  const dir = join(root, "docs", "pipeline-status", name);
+function readDone(root, name, ref, errors) {
   const done = {};
-  if (!existsSync(dir)) return done;
-  for (const f of readdirSync(dir).filter((f) => f.endsWith(".yaml"))) {
-    const data = readYaml(join(dir, f), errors);
+  for (const { f, data } of readStatusFiles(root, name, ref, errors)) {
     if (data?.status === "done") done[f.slice(0, -5)] = data;
   }
   return done;
@@ -88,13 +88,14 @@ function waves(phases) {
   return wave;
 }
 
-export function buildModel(root, name, runFile = join(root, ".claude", "expert-teams", "runs", `${name}.yaml`)) {
+export function buildModel(root, name, runFile = join(root, ".claude", "expert-teams", "runs", `${name}.yaml`), explicitRef = null) {
   const errors = [];
   const file = join(root, ".claude", "expert-teams", "pipelines", `${name}.yaml`);
   if (!existsSync(file)) return { errors: [`${file} does not exist`] };
   const pipeline = readYaml(file, errors);
   if (!pipeline || !Array.isArray(pipeline.phases)) return { errors: errors.length ? errors : [`${file} has no phases`] };
-  const done = readDone(root, name, errors);
+  const ref = explicitRef === WORKING_TREE ? null : statusRef(root, pipeline, name, explicitRef);
+  const done = readDone(root, name, ref, errors);
   const running = readRun(runFile, name, errors);
   const wave = waves(pipeline.phases);
   const phases = pipeline.phases.map((p) => {
@@ -119,7 +120,9 @@ export function buildModel(root, name, runFile = join(root, ".claude", "expert-t
       acceptance: p.acceptance ?? [],
     };
   });
-  return { errors, name, description: pipeline.description ?? "", phases };
+  const target = targetBranch(pipeline, name);
+  const base = pipeline.rules?.baseBranch ?? null;
+  return { errors, name, description: pipeline.description ?? "", target, base, phases };
 }
 
 // ---------- Markdown with Mermaid ----------
@@ -172,6 +175,10 @@ export function renderMarkdown(model, generatedAt) {
     model.description,
     "",
     `State: ${summary}. Generated ${generatedAt} by \`/expert-teams:status\`. Details per phase: open \`pipeline.html\` in this folder in a browser.`,
+    "",
+    model.target && model.target !== model.base
+      ? `Phases are merged into \`${model.target}\`; one final pull request brings it into \`${model.base}\`.`
+      : `Phases are merged into \`${model.base}\`.`,
     "",
     ...lines,
     "",
@@ -298,15 +305,18 @@ export function visualize(argv) {
   let root = process.cwd();
   let out = null;
   let runFile;
+  let ref = null;
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === "--root") root = resolve(argv[++i]);
     else if (argv[i] === "--out") out = argv[++i];
     else if (argv[i] === "--run") runFile = resolve(argv[++i]);
+    else if (argv[i] === "--ref") ref = argv[++i];
+    else if (argv[i] === "--working-tree") ref = WORKING_TREE;
     else positional.push(argv[i]);
   }
   const [name] = positional;
-  if (!name || !SLUG.test(name)) return { ok: false, usage: true, errors: ["Usage: node visualize.mjs <name> [--root <dir>] [--out <dir>] [--run <file>]"] };
-  const model = buildModel(root, name, runFile);
+  if (!name || !SLUG.test(name)) return { ok: false, usage: true, errors: ["Usage: node visualize.mjs <name> [--root <dir>] [--out <dir>] [--run <file>] [--ref <git-ref> | --working-tree]"] };
+  const model = buildModel(root, name, runFile, ref);
   if (!model.phases) return { ok: false, errors: model.errors };
   const dir = out ? resolve(root, out) : join(root, "docs", "pipeline-status", name);
   mkdirSync(dir, { recursive: true });

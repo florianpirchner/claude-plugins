@@ -69,9 +69,14 @@
         "delivery": {
           "type": "string",
           "enum": ["pr-merge", "pr-open", "commit"],
-          "description": "pr-merge: one pull request per phase, merged right away. pr-open: one pull request per phase, a human merges. commit: merge the phase locally into baseBranch, no pull request."
+          "description": "pr-merge: one pull request per phase into the integration branch, merged right away. pr-open: one pull request per phase, a human merges. commit: merge the phase locally, no pull request. The target is integrationBranch, or baseBranch if it is none."
         },
         "baseBranch": { "type": "string", "minLength": 1 },
+        "integrationBranch": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*$",
+          "description": "Branch all phases are merged into, created from baseBranch at the first run. Default expert-teams/<name>. When all phases are done, one pull request brings it into baseBranch; a human merges it. none: phases are merged straight into baseBranch."
+        },
         "preCommit": {
           "type": ["string", "null"],
           "description": "Command that must succeed before every commit in code phases, e.g. npm run check. null if there is none."

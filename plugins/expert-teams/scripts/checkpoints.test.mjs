@@ -8,6 +8,7 @@ import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { run } from "./validate.mjs";
+import { visualize } from "./visualize.mjs";
 
 const PLUGIN = join(dirname(fileURLToPath(import.meta.url)), "..");
 const NAME = "business-tool-mvp";
@@ -118,4 +119,37 @@ test("an invalid checkpoint is an error", () => {
   const r = checkpoints(root);
   assert.equal(r.ok, false);
   assert.ok(r.errors.some((e) => e.includes("halfway")));
+});
+
+test("status comes from the integration branch while main is checked out", () => {
+  const root = project();
+  git(root, "checkout", "-q", "-b", `expert-teams/${NAME}`, "main");
+  writeFileSync(join(root, STATUS, "views.yaml"), `pipeline: ${NAME}\nphase: views\nstatus: done\nrounds: 1\n`);
+  commitAll(root, "views done");
+  git(root, "push", "-q", "-u", "origin", `expert-teams/${NAME}`);
+  git(root, "checkout", "-q", "main");
+  const r = run(["pipeline", NAME, "--root", root, "--agents-dir", join(PLUGIN, "examples", "agents")]);
+  assert.equal(r.ok, true, JSON.stringify(r.errors));
+  assert.equal(r.target, `expert-teams/${NAME}`);
+  assert.deepEqual(r.done.sort(), ["requirements", "views"]);
+  assert.match(r.statusFrom, /expert-teams\/business-tool-mvp$/);
+  // The view reads the same branch.
+  const v = visualize([NAME, "--root", root]);
+  assert.equal(v.states.views, "done");
+  assert.ok(readFileSync(join(root, STATUS, "README.md"), "utf8").includes(`Phases are merged into \`expert-teams/${NAME}\``));
+  // --working-tree reads only what is on disk (main).
+  assert.equal(visualize([NAME, "--root", root, "--working-tree"]).states.views, "startable");
+});
+
+test("integrationBranch none reads main, the same name as baseBranch is an error", () => {
+  const root = project();
+  const file = join(root, ".claude", "expert-teams", "pipelines", `${NAME}.yaml`);
+  const original = readFileSync(file, "utf8");
+  writeFileSync(file, original.replace("  baseBranch: main\n", "  baseBranch: main\n  integrationBranch: none\n"));
+  const r = run(["pipeline", NAME, "--root", root, "--agents-dir", join(PLUGIN, "examples", "agents")]);
+  assert.equal(r.ok, true, JSON.stringify(r.errors));
+  assert.equal(r.target, "main");
+  assert.equal(r.statusFrom, "working tree");
+  writeFileSync(file, original.replace("  baseBranch: main\n", "  baseBranch: main\n  integrationBranch: main\n"));
+  assert.equal(run(["pipeline", NAME, "--root", root, "--agents-dir", join(PLUGIN, "examples", "agents")]).ok, false);
 });

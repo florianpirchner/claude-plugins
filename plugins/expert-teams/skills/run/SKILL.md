@@ -38,14 +38,18 @@ Below, `<name>` is the checked name and `P` is the file `.claude/expert-teams/pi
    node <plugin>/scripts/validate.mjs pipeline <name>
    ```
    On `"ok": false` start nothing, show all `errors` and stop. Do not repair the file yourself. Show `warnings` once and continue.
+
+   `target` in the output is the branch the phases are merged into (below `<target>`): `rules.integrationBranch`, by default `expert-teams/<name>`. With `integrationBranch: none` it is `<base>` and the phases go straight into it.
+
+   **Integration branch.** If `<target>` is not `<base>`: check it out (`git checkout <target>`; if it does not exist locally or on the remote, create it with `git checkout -b <target> origin/<base>`, or from `<base>` without a remote, and push it with `git push -u origin <target>`). Then bring in what happened on `<base>` meanwhile: `git merge origin/<base>` (or `<base>`) and push. On a conflict resolve it if it is clearly mechanical (generated files: regenerate them), otherwise stop and report the conflicting files. Then validate again so `done` is read from `<target>`.
 3. Read the project's `CLAUDE.md` if there is one. Its rules apply in addition to `rules`.
-4. A phase is `done` if it is listed in `done` of the validation output, i.e. `docs/pipeline-status/<name>/<phase-id>.yaml` exists on `<base>` with `status: done`. Everything else is open.
+4. A phase is `done` if it is listed in `done` of the validation output, i.e. `docs/pipeline-status/<name>/<phase-id>.yaml` exists on `<target>` with `status: done`. Everything else is open.
 5. An open phase is **startable** if every phase in its `dependsOn` is `done`.
 6. **Pick up interrupted work.** If a remote exists, run `git fetch origin --prune`, then:
    ```
    node <plugin>/scripts/validate.mjs checkpoints <name>
    ```
-   Every entry in `checkpoints` is a phase or work package whose branch `pipeline/<name>/<id>` exists but is not done on `<base>`, read from the newer of the local and the remote branch. Such a phase is resumed, not started fresh: in step 3 its worktree is created from that branch, and if `pushed` is `false`, push the branch first. Where to continue:
+   Every entry in `checkpoints` is a phase or work package whose branch `pipeline/<name>/<id>` exists but is not done on `<target>`, read from the newer of the local and the remote branch. Such a phase is resumed, not started fresh: in step 3 its worktree is created from that branch, and if `pushed` is `false`, push the branch first. Where to continue:
    - `no-checkpoint`: round 1, build step, on top of what the branch already holds.
    - `in-progress` with `step: build`: the review of `round`.
    - `in-progress` with `step: review`: evaluate `findings` (step 4c). No blocking finding open means accepted; otherwise round `round + 1` starts with these findings.
@@ -63,10 +67,10 @@ With `mode: all`, all startable phases are started; with `mode: phase`, only the
 
 **With `rules.worktrees: true`** all startable phases form a wave and run in parallel, with at most `rules.maxParallelAgents` (default 4) agents at a time. For each phase:
 ```
-git fetch origin <base>
-git worktree add .claude/worktrees/<name>-<phase-id> -b pipeline/<name>/<phase-id> origin/<base>
+git fetch origin <target>
+git worktree add .claude/worktrees/<name>-<phase-id> -b pipeline/<name>/<phase-id> origin/<target>
 ```
-Without a remote use `<base>` instead of `origin/<base>`. If the worktree already exists (interrupted run), continue in it. For a phase with a checkpoint (step 1.6) use its branch instead of creating one: `git worktree add .claude/worktrees/<name>-<phase-id> pipeline/<name>/<phase-id>`, or if only the remote branch exists, `git worktree add .claude/worktrees/<name>-<phase-id> -b pipeline/<name>/<phase-id> origin/pipeline/<name>/<phase-id>`.
+Without a remote use `<target>` instead of `origin/<target>`. If the worktree already exists (interrupted run), continue in it. For a phase with a checkpoint (step 1.6) use its branch instead of creating one: `git worktree add .claude/worktrees/<name>-<phase-id> pipeline/<name>/<phase-id>`, or if only the remote branch exists, `git worktree add .claude/worktrees/<name>-<phase-id> -b pipeline/<name>/<phase-id> origin/pipeline/<name>/<phase-id>`.
 
 **With `rules.worktrees: false`** only one phase runs at a time, in the project directory on the branch `pipeline/<name>/<phase-id>` (create it or, after an interruption, reuse it).
 
@@ -143,7 +147,7 @@ A role whose reply ends with a `CONSULT` block has not finished yet. Handle it a
 2. Commit everything in `<wd>` with `<name>/<id>: round <n> <step> (checkpoint)`. Checkpoint commits do not run `rules.preCommit` and are allowed to be unfinished; only the delivery commit (step 7) must pass it. If the project's `CLAUDE.md` forbids such commits, tell the user and suggest `pushEveryRound: false`.
 3. If a remote exists, `git push -u origin pipeline/<name>/<id>`. If the push fails, say so once and continue; the checkpoint is still committed locally.
 
-Checkpoints never reach `<base>` on their own: delivery overwrites the file with `status: done`.
+Checkpoints never reach `<target>` on their own: delivery overwrites the file with `status: done`.
 
 **c) Evaluate.** The phase is accepted when every review role reports "accepted" and no blocking finding is open. Otherwise start the next round with all findings.
 
@@ -194,12 +198,12 @@ If `rules.consult.enabled` is `false`, add instead: `Settle open questions yours
 
 ## 6. Phases with work packages
 
-If a phase has `workPackages`, read `workPackages.from` (on `<base>`) and treat every package like a small phase of its own:
+If a phase has `workPackages`, read `workPackages.from` (on `<target>`) and treat every package like a small phase of its own:
 - Worktree `.claude/worktrees/<name>-<phase-id>-<package-id>` on branch `pipeline/<name>/<phase-id>-<package-id>` (without worktrees: one after another in the project directory).
 - Builder from `builderByType[type]`, reviewers from `reviewersByType[type]`, models as in step 4, tasks from `task` and `reviewTask` plus the package description, the requirement IDs and the allowed files. Consult questions and human in the loop work as in section 5.
-- A package starts only when all packages in its `dependsOn` are delivered, and it builds on the current `<base>`. Packages without open dependencies run in parallel.
+- A package starts only when all packages in its `dependsOn` are delivered, and it builds on the current `<target>`. Packages without open dependencies run in parallel.
 - If a package has a `type` without a builder, stop and report.
-- Every package is delivered on its own (step 7). The phase is `done` when all packages are delivered and `rules.preCommit` (if set) succeeds on `<base>`.
+- Every package is delivered on its own (step 7). The phase is `done` when all packages are delivered and `rules.preCommit` (if set) succeeds on `<target>`.
 
 ## 7. Deliver
 
@@ -221,19 +225,19 @@ When a phase or package is accepted:
    ```
    Then remove the phase from the run file and update the view of the pipeline in `<wd>`:
    ```
-   node <plugin>/scripts/visualize.mjs <name> --root <wd> --run <project-dir>/.claude/expert-teams/runs/<name>.yaml
+   node <plugin>/scripts/visualize.mjs <name> --root <wd> --working-tree --run <project-dir>/.claude/expert-teams/runs/<name>.yaml
    ```
    It writes `docs/pipeline-status/<name>/README.md` (Mermaid chart, shown by GitHub) and `pipeline.html`; both go into the same commit. They are generated: on a merge conflict in them, run the command again instead of resolving by hand.
 3. Commit in `<wd>` (in code phases only after a successful `rules.preCommit`). Then, depending on `rules.delivery`:
-   - `pr-merge`: push the branch, create a pull request into `<base>` and merge it right away.
+   - `pr-merge`: push the branch, create a pull request into `<target>` and merge it right away.
      ```
-     gh pr create --base <base> --head pipeline/<name>/<id> --title "<name>/<id>: <goal>" --body "<summary, verdicts, consult questions, decisions>"
+     gh pr create --base <target> --head pipeline/<name>/<id> --title "<name>/<id>: <goal>" --body "<summary, verdicts, consult questions, decisions>"
      gh pr merge --merge --delete-branch
      ```
-     If the merge has a conflict, merge `origin/<base>` into the branch, resolve the conflict, check again and retry.
+     If the merge has a conflict, merge `origin/<target>` into the branch, resolve the conflict, check again and retry.
    - `pr-open`: push the branch and create a pull request, do not merge. The phase only counts as `done` once a human has merged it. Do not start phases waiting on it; list the open pull requests at the end.
-   - `commit`: no pull request. Switch to the project directory, `git checkout <base>`, `git merge --no-ff pipeline/<name>/<id>`, and push `<base>` if a remote exists.
-4. Remove the worktree (`git worktree remove .claude/worktrees/<name>-<id>`), set the task to `completed`, update `<base>` in the project directory.
+   - `commit`: no pull request. Switch to the project directory, `git checkout <target>`, `git merge --no-ff pipeline/<name>/<id>`, and push `<target>` if a remote exists.
+4. Remove the worktree (`git worktree remove .claude/worktrees/<name>-<id>`), set the task to `completed`, update `<target>` in the project directory (`git checkout <target> && git pull`).
 5. Continue with step 1: new phases may be startable now. With `mode: phase` stop after this phase.
 
 ## 8. Stop conditions
@@ -241,11 +245,23 @@ When a phase or package is accepted:
 Stop and report instead of continuing if:
 - `gh` is missing for `pr-merge` or `pr-open`, or the push or merge is rejected,
 - an agent ends twice in a row without a usable result,
-- `rules.preCommit` fails on `<base>` after a merge and one build round does not fix it,
-- the validation script reports errors in the status files after a delivery.
+- `rules.preCommit` fails on `<target>` after a merge and one build round does not fix it,
+- the validation script reports errors in the status files after a delivery,
+- merging `<base>` into `<target>` at the start of a run has a conflict that is not mechanical.
 
 The report names the phase, what failed, and how to continue with `/expert-teams:run <name> <phase-id>`. The state is kept in the status files, the checkpoints on the pushed phase branches and the worktrees, so a new run continues there, even on another machine or after the worktree is lost.
 
 ## 9. Wrap-up
 
 When all phases are `done`, print a short summary: phases with their number of rounds, consult questions per phase and who answered them, all stalemate decisions with a link to `docs/decisions/<name>/`, and with `pr-open` the pull requests that are still open.
+
+**Final pull request.** If `<target>` is not `<base>` and every phase is `done`, bring the result into `<base>` with one pull request, and do not merge it: the user reviews and merges it.
+1. In the project directory: `git checkout <target> && git pull`, `git merge origin/<base>` (resolve or stop as in step 1.2), run `rules.preCommit` if set, push `<target>`.
+2. If no pull request from `<target>` into `<base>` is open yet:
+   ```
+   gh pr create --base <base> --head <target> --title "<name>: <description>" --body "<phases with rounds, decisions, link to docs/pipeline-status/<name>/README.md>"
+   ```
+   Otherwise the push has already updated it.
+3. Print its link and say that it waits for the user's merge. Without `gh` or with `delivery: commit`, say instead: `<target>` is complete, merge it into `<base>` yourself (for example `git checkout <base> && git merge --no-ff <target>`).
+
+With `mode: phase` the final pull request is created only when this phase was the last open one.

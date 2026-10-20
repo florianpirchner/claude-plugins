@@ -33,7 +33,7 @@ Requirements in the target project: git, Node.js 18 or later for the validation 
 | `.claude/expert-teams/drafts/<draft>.yaml` | State of `/expert-teams:create` and `/expert-teams:modify`. Written after every decision so a restart continues there. |
 | `.claude/agents/<agent>.md` | The roles. One self-contained file per role. |
 | `.claude/skills/<name>/SKILL.md` | The shortcut `/<name>`. |
-| `docs/pipeline-status/<name>/<phase-id>.yaml` | Finished phases. A phase is done when its file is on the target branch. On a phase branch the same file holds the checkpoint of an unfinished phase. |
+| `docs/pipeline-status/<name>/<phase-id>.yaml` | Finished phases. A phase is done when its file is on the integration branch (`rules.integrationBranch`, default `expert-teams/<name>`; with `none` the target branch `rules.baseBranch`). On a phase branch the same file holds the checkpoint of an unfinished phase. |
 | `docs/decisions/<name>/<phase-id>.md` | Consult questions with their answers, and stalemate decisions. |
 | `docs/pipeline-status/<name>/README.md` | Chart of the pipeline (Mermaid, top to bottom) with builders and state per phase and the reviewers below. GitHub shows it when you open the folder. Written by `/expert-teams:status` and with every delivered phase. |
 | `docs/pipeline-status/<name>/pipeline.html` | The same pipeline as one HTML file without dependencies: hover or tap a phase for builders, reviewers, tasks, round and acceptance criteria. Open it locally in a browser. |
@@ -45,6 +45,10 @@ All data files are YAML, so the pipeline can carry `#` comments explaining its c
 ## Languages
 
 Everything the agents write is English by default: code, database tables and columns, API names, comments, commit messages and branch names (`rules.language.code`), documents (`rules.language.docs`) and texts the end users see (`rules.language.ui`). `/expert-teams:create` asks about it among its base questions at the end of grill me. Reviewers treat text in the wrong language as a blocking finding.
+
+## Branches
+
+A running project should not see every phase land on `main` one by one. So the phases are merged into an integration branch, `rules.integrationBranch`, by default `expert-teams/<name>`. `/expert-teams:run` creates it from `rules.baseBranch`, merges the newest `baseBranch` into it at every start, and merges each phase pull request into it. When the last phase is done, it opens one final pull request from the integration branch into `baseBranch` and leaves it for you to review and merge. `integrationBranch: none` keeps the old behaviour: every phase goes straight into `baseBranch`. `scripts/validate.mjs` and `scripts/visualize.mjs` read the status files from the integration branch even while `main` is checked out (`--ref` picks another branch).
 
 ## Technology advice
 

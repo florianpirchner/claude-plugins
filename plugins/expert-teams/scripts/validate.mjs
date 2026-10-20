@@ -10,6 +10,8 @@
 //
 // Options: --root <project-dir> (default: current directory)
 //          --agents-dir <dir> (additional directory with agent files, may be repeated)
+//          --ref <git-ref> (pipeline, checkpoints: read the status files from this ref; default: the
+//                           target branch, see targetBranch, or the working tree if it is checked out)
 //
 // Exit code 0 = fine, 1 = errors found, 2 = wrong usage.
 // The output is JSON so the skill can read it unambiguously.
@@ -158,6 +160,11 @@ function checkSemantics(pipeline, name, dirs) {
   if (pipeline.name !== name) errors.push(`name is "${pipeline.name}", but the file is called ${name}.yaml`);
 
   const rules = pipeline.rules;
+  const integration = rules.integrationBranch;
+  if (integration !== undefined && integration !== "none") {
+    if (integration === rules.baseBranch) errors.push(`rules.integrationBranch is the same as baseBranch; use none to merge straight into ${rules.baseBranch}`);
+    if (integration === "pipeline" || integration.startsWith("pipeline/")) errors.push("rules.integrationBranch must not start with pipeline/, that is where the phase branches live");
+  }
   const hasAskHumanWhen = (rules.askHumanWhen ?? []).length > 0;
   const levels = new Set([rules.humanInTheLoop ?? "as-needed", ...pipeline.phases.map((p) => p.humanInTheLoop).filter(Boolean)]);
   if (levels.has("as-needed") && !hasAskHumanWhen) {
@@ -231,15 +238,69 @@ function checkSemantics(pipeline, name, dirs) {
   return { errors, warnings };
 }
 
-function checkStatusFiles(root, name, phaseIds) {
-  const errors = [];
+function git(root, args) {
+  try {
+    return execFileSync("git", args, { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
+  } catch {
+    return null;
+  }
+}
+
+// The newer of the local and the remote branch: local only if it has commits the remote lacks.
+function newestRef({ local, remote }, root) {
+  if (!remote) return local;
+  if (!local) return remote;
+  const ahead = git(root, ["rev-list", "--count", `${remote}..${local}`]);
+  return ahead && ahead !== "0" ? local : remote;
+}
+
+// The branch phases are merged into: integrationBranch (default expert-teams/<name>), or baseBranch with "none".
+export function targetBranch(pipeline, name) {
+  const integration = pipeline?.rules?.integrationBranch;
+  if (integration === "none") return pipeline?.rules?.baseBranch ?? null;
+  return integration ?? `expert-teams/${name}`;
+}
+
+// Where the status files are read from: an explicit ref, else the target branch (the newer of local and
+// origin) unless it is checked out or does not exist yet; then the working tree (null).
+export function statusRef(root, pipeline, name, explicit) {
+  if (explicit) return explicit;
+  const branch = targetBranch(pipeline, name);
+  if (!branch || git(root, ["rev-parse", "--abbrev-ref", "HEAD"]) === branch) return null;
+  const has = (ref) => git(root, ["rev-parse", "--verify", "--quiet", ref]) !== null;
+  const local = has(`refs/heads/${branch}`) ? `refs/heads/${branch}` : undefined;
+  const remote = has(`refs/remotes/origin/${branch}`) ? `refs/remotes/origin/${branch}` : undefined;
+  return local || remote ? newestRef({ local, remote }, root) : null;
+}
+
+// Status files of a pipeline as [{ f, data }], from the working tree or from a git ref.
+export function readStatusFiles(root, name, ref, errors) {
+  const entries = [];
+  if (ref) {
+    const out = git(root, ["ls-tree", "--name-only", ref, `docs/pipeline-status/${name}/`]);
+    for (const path of out ? out.split("\n").filter((p) => p.endsWith(".yaml")).sort() : []) {
+      const f = path.split("/").pop();
+      try {
+        entries.push({ f, data: load(git(root, ["show", `${ref}:${path}`]) ?? "", { schema: JSON_SCHEMA }) });
+      } catch (e) {
+        errors.push(`${ref}:${path}: not valid YAML (${e.message})`);
+      }
+    }
+    return entries;
+  }
   const dir = join(root, "docs", "pipeline-status", name);
-  if (!existsSync(dir)) return { errors, done: [] };
-  const done = [];
+  if (!existsSync(dir)) return entries;
   for (const f of readdirSync(dir).filter((f) => f.endsWith(".yaml")).sort()) {
-    const file = join(dir, f);
-    const data = readYaml(file, errors);
-    if (data === undefined) continue;
+    const data = readYaml(join(dir, f), errors);
+    if (data !== undefined) entries.push({ f, data });
+  }
+  return entries;
+}
+
+function checkStatusFiles(root, name, phaseIds, ref = null) {
+  const errors = [];
+  const done = [];
+  for (const { f, data } of readStatusFiles(root, name, ref, errors)) {
     errors.push(...checkAgainst("status.schema.json", data, f));
     const id = f.slice(0, -5);
     if (data.pipeline !== undefined && data.pipeline !== name) errors.push(`${f}: pipeline is "${data.pipeline}", expected "${name}"`);
@@ -264,14 +325,6 @@ function listPipelines(root) {
 
 // ---------- Checkpoints on phase branches ----------
 
-function git(root, args) {
-  try {
-    return execFileSync("git", args, { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
-  } catch {
-    return null;
-  }
-}
-
 function branchRefs(root, name) {
   const refs = new Map();
   for (const [prefix, kind] of [[`refs/remotes/origin/pipeline/${name}/`, "remote"], [`refs/heads/pipeline/${name}/`, "local"]]) {
@@ -285,15 +338,7 @@ function branchRefs(root, name) {
   return refs;
 }
 
-// The newer of the local and the remote branch: local only if it has commits the remote lacks.
-function newestRef({ local, remote }, root) {
-  if (!remote) return local;
-  if (!local) return remote;
-  const ahead = git(root, ["rev-list", "--count", `${remote}..${local}`]);
-  return ahead && ahead !== "0" ? local : remote;
-}
-
-function cmdCheckpoints(root, name) {
+function cmdCheckpoints(root, name, explicitRef) {
   if (!name || !SLUG.test(name)) return { ok: false, errors: [`Invalid name "${name ?? ""}"`] };
   const file = join(root, ".claude", "expert-teams", "pipelines", `${name}.yaml`);
   if (!existsSync(file)) return { ok: false, errors: [`${file} does not exist`], pipelines: listPipelines(root) };
@@ -301,7 +346,7 @@ function cmdCheckpoints(root, name) {
   const errors = [];
   const pipeline = readYaml(file, errors);
   const phaseIds = Array.isArray(pipeline?.phases) ? pipeline.phases.map((p) => p.id) : [];
-  const { done } = checkStatusFiles(root, name, phaseIds);
+  const { done } = checkStatusFiles(root, name, phaseIds, statusRef(root, pipeline, name, explicitRef));
   const checkpoints = [];
   for (const [id, refs] of [...branchRefs(root, name)].sort(([a], [b]) => a.localeCompare(b))) {
     const phase = phaseIds.find((p) => id === p || id.startsWith(`${p}-`));
@@ -367,7 +412,7 @@ function cmdArgs(root, allWords) {
   return { ok: true, name, mode: "phase", phase: second, humanInTheLoop };
 }
 
-function cmdPipeline(root, name, extraDirs) {
+function cmdPipeline(root, name, extraDirs, explicitRef) {
   if (!name || !SLUG.test(name)) return { ok: false, errors: [`Invalid name "${name ?? ""}"`] };
   const file = join(root, ".claude", "expert-teams", "pipelines", `${name}.yaml`);
   if (!existsSync(file)) return { ok: false, errors: [`${file} does not exist`], pipelines: listPipelines(root) };
@@ -378,9 +423,18 @@ function cmdPipeline(root, name, extraDirs) {
   if (errors.length) return { ok: false, errors };
   const sem = checkSemantics(pipeline, name, agentDirs(root, extraDirs));
   const phaseIds = pipeline.phases.map((p) => p.id);
-  const status = checkStatusFiles(root, name, phaseIds);
+  const ref = statusRef(root, pipeline, name, explicitRef);
+  const status = checkStatusFiles(root, name, phaseIds, ref);
   const all = [...sem.errors, ...status.errors];
-  return { ok: all.length === 0, errors: all, warnings: sem.warnings, phases: phaseIds, done: status.done };
+  return {
+    ok: all.length === 0,
+    errors: all,
+    warnings: sem.warnings,
+    phases: phaseIds,
+    done: status.done,
+    target: targetBranch(pipeline, name),
+    statusFrom: ref ?? "working tree",
+  };
 }
 
 function cmdNewName(root, name) {
@@ -415,6 +469,7 @@ function parseArgv(argv) {
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === "--root") opts.root = resolve(argv[++i]);
     else if (argv[i] === "--agents-dir") opts.agentsDirs.push(resolve(argv[++i]));
+    else if (argv[i] === "--ref") opts.ref = argv[++i];
     else if (argv[i] === "--") positional.push(...argv.slice(i + 1)), (i = argv.length);
     else positional.push(argv[i]);
   }
@@ -428,7 +483,7 @@ export function run(argv) {
     case "args":
       return cmdArgs(opts.root, rest);
     case "pipeline":
-      return cmdPipeline(opts.root, rest[0], opts.agentsDirs);
+      return cmdPipeline(opts.root, rest[0], opts.agentsDirs, opts.ref);
     case "new-name":
       return cmdNewName(opts.root, rest[0]);
     case "setup":
@@ -436,7 +491,7 @@ export function run(argv) {
     case "list":
       return cmdList(opts.root);
     case "checkpoints":
-      return cmdCheckpoints(opts.root, rest[0]);
+      return cmdCheckpoints(opts.root, rest[0], opts.ref);
     default:
       return { ok: false, usage: true, errors: ["Usage: node validate.mjs args|pipeline|new-name|setup|list|checkpoints ..."] };
   }
