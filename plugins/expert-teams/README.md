@@ -214,5 +214,7 @@ Afterwards it checks with the plugin's own scripts: the pipeline is valid, all p
 
 ## Limits
 
+- Claude Code blocks subagents from writing files that look like reports (e.g. `report.md`). Name outputs after their content; if a builder still returns an output as text, the orchestrator writes it unchanged and notes it in the decision log.
+- In a headless `claude -p` session the task tools are missing; the run then keeps its state only in the run file and the status files.
 - After a restart of Claude Code, paused roles cannot be resumed. The orchestrator starts them again with their task and the answers so far.
 - Whether newly created skills appear right away or only after a restart of Claude Code depends on its version.

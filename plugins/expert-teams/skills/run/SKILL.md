@@ -208,7 +208,7 @@ If a phase has `workPackages`, read `workPackages.from` (on `<target>`) and trea
 ## 7. Deliver
 
 When a phase or package is accepted:
-1. Check the `acceptance` criteria and that all `outputs` exist. If something is missing, go back to step 4.
+1. Check the `acceptance` criteria and that all `outputs` exist. If a builder could not write an output (Claude Code blocks subagents from writing files that look like reports) and returned its content as text instead, write that text unchanged to the output path yourself and note it in the decision log. If something else is missing, go back to step 4.
 2. Write `docs/pipeline-status/<name>/<phase-id>.yaml` (for packages `<phase-id>-<package-id>.yaml`) in `<wd>`:
    ```yaml
    pipeline: <name>

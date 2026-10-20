@@ -71,7 +71,7 @@ phases:
         mode: build
         task: Run npm test and write a report listing each requirement, the test that covers it and its result.
         outputs:
-          - docs/acceptance/report.md
+          - docs/acceptance/acceptance.md
       - agent: product-manager
         mode: review
         task: Check that the report covers every requirement and that the results support acceptance.

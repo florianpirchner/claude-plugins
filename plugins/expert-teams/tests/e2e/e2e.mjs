@@ -140,7 +140,7 @@ function checkRun() {
   tryGit(["worktree", "prune"]);
   const added = tryGit(["worktree", "add", "-q", "--detach", checkout, `origin/${target}`]);
   if (added !== null) {
-    for (const f of ["docs/specification/requirements.md", "src/server.js", "test/server.test.js", "docs/acceptance/report.md", `docs/pipeline-status/${NAME}/README.md`]) {
+    for (const f of ["docs/specification/requirements.md", "src/server.js", "test/server.test.js", "docs/acceptance/acceptance.md", `docs/pipeline-status/${NAME}/README.md`]) {
       check(`run: ${f}`, existsSync(join(checkout, f)));
     }
     const t = spawnSync("npm", ["test"], { cwd: checkout, encoding: "utf8" });

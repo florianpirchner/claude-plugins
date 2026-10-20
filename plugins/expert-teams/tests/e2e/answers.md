@@ -37,7 +37,7 @@ Exactly three phases, one after the other:
 
 1. `requirements`: product-manager builds `docs/specification/requirements.md` (numbered requirements with acceptance criteria), tester reviews it.
 2. `implementation`: code phase. backend-developer builds `src/server.js` and `test/server.test.js`, tester reviews. Acceptance: `npm test` passes and every requirement has a test.
-3. `acceptance`: tester builds `docs/acceptance/report.md` (each requirement with the test that covers it and the result of `npm test`), product-manager reviews.
+3. `acceptance`: tester builds `docs/acceptance/acceptance.md` (each requirement with the test that covers it and the result of `npm test`), product-manager reviews.
 
 ## Stage 5: Generate
 
