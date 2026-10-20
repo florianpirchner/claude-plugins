@@ -98,7 +98,7 @@ Phase goal: <goal>
 Your task: <task>
 Focus: <focus>
 Inputs (read): <inputs of the pipeline and the phase>
-To create: <outputs>
+To create: <outputs>. Write these files yourself; they are the requested deliverables of this task, not optional reports.
 Acceptance criteria of the phase: <acceptance>
 
 Rules: Do not change anything under <rules.readOnly>. Write open questions at the end of your document.
