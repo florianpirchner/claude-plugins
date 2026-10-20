@@ -6,15 +6,16 @@ import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { run } from "./validate.mjs";
+import { dump, JSON_SCHEMA, load } from "./vendor/js-yaml.mjs";
 
 const PLUGIN = join(dirname(fileURLToPath(import.meta.url)), "..");
-const EXAMPLE = JSON.parse(readFileSync(join(PLUGIN, "examples", "business-tool-mvp.json"), "utf8"));
+const EXAMPLE = load(readFileSync(join(PLUGIN, "examples", "business-tool-mvp.yaml"), "utf8"), { schema: JSON_SCHEMA });
 const AGENTS = join(PLUGIN, "examples", "agents");
 
 function project(pipeline, name = pipeline.name) {
   const root = mkdtempSync(join(tmpdir(), "expert-teams-"));
   mkdirSync(join(root, ".claude", "expert-teams", "pipelines"), { recursive: true });
-  writeFileSync(join(root, ".claude", "expert-teams", "pipelines", `${name}.json`), JSON.stringify(pipeline));
+  writeFileSync(join(root, ".claude", "expert-teams", "pipelines", `${name}.yaml`), dump(pipeline));
   return root;
 }
 
@@ -56,15 +57,15 @@ test("missing agent file and missing reviewer are detected", () => {
 
 test("name and file name must match", () => {
   const r = check(project(clone(), "other-name"), "other-name");
-  assert.ok(r.errors.some((e) => e.includes("the file is called other-name.json")));
+  assert.ok(r.errors.some((e) => e.includes("the file is called other-name.yaml")));
 });
 
 test("status files are checked", () => {
   const root = project(clone());
   const dir = join(root, "docs", "pipeline-status", "business-tool-mvp");
   mkdirSync(dir, { recursive: true });
-  writeFileSync(join(dir, "requirements.json"), JSON.stringify({ pipeline: "business-tool-mvp", phase: "requirements", status: "done", consults: { controller: 1, human: 1 } }));
-  writeFileSync(join(dir, "views.json"), JSON.stringify({ pipeline: "business-tool-mvp", phase: "views", status: "finished" }));
+  writeFileSync(join(dir, "requirements.yaml"), dump({ pipeline: "business-tool-mvp", phase: "requirements", status: "done", consults: { controller: 1, human: 1 } }));
+  writeFileSync(join(dir, "views.yaml"), dump({ pipeline: "business-tool-mvp", phase: "views", status: "finished" }));
   const r = check(root);
   assert.deepEqual(r.done, ["requirements"]);
   assert.ok(r.errors.some((e) => e.includes('"finished" is not allowed')));
@@ -124,7 +125,7 @@ test("new-name checks format and collisions", () => {
 
 test("setup checks the draft", () => {
   const root = mkdtempSync(join(tmpdir(), "expert-teams-"));
-  const file = join(root, "draft.json");
+  const file = join(root, "draft.yaml");
   const draft = {
     draft: "draft-1",
     name: null,
@@ -134,15 +135,15 @@ test("setup checks the draft", () => {
     team: { roles: [{ agent: "tester", purpose: "checks", source: "example" }] },
     flow: { phases: [] },
   };
-  writeFileSync(file, JSON.stringify(draft));
+  writeFileSync(file, dump(draft));
   assert.equal(run(["setup", file]).ok, true);
-  writeFileSync(file, JSON.stringify({ ...draft, stage: "finished" }));
+  writeFileSync(file, dump({ ...draft, stage: "finished" }));
   assert.equal(run(["setup", file]).ok, false);
 });
 
 test("setup checks the grill-me findings", () => {
   const root = mkdtempSync(join(tmpdir(), "expert-teams-"));
-  const file = join(root, "draft.json");
+  const file = join(root, "draft.yaml");
   const draft = {
     draft: "draft-1",
     name: null,
@@ -158,17 +159,17 @@ test("setup checks the grill-me findings", () => {
     team: { roles: [] },
     flow: { phases: [] },
   };
-  writeFileSync(file, JSON.stringify(draft));
+  writeFileSync(file, dump(draft));
   assert.equal(run(["setup", file]).ok, true);
   const bad = structuredClone(draft);
   bad.grillMe.findings[0].kind = "question";
-  writeFileSync(file, JSON.stringify(bad));
+  writeFileSync(file, dump(bad));
   assert.equal(run(["setup", file]).ok, false);
 });
 
 test("setup checks a modify draft against the existing pipeline", () => {
   const root = project(clone());
-  const file = join(root, "draft.json");
+  const file = join(root, "draft.yaml");
   const draft = {
     draft: "modify-business-tool-mvp",
     kind: "modify",
@@ -180,12 +181,39 @@ test("setup checks a modify draft against the existing pipeline", () => {
     team: { roles: [] },
     flow: { phases: [] },
   };
-  writeFileSync(file, JSON.stringify(draft));
+  writeFileSync(file, dump(draft));
   assert.equal(run(["setup", file, "--root", root]).ok, true);
-  writeFileSync(file, JSON.stringify({ ...draft, name: "unknown-pipeline" }));
+  writeFileSync(file, dump({ ...draft, name: "unknown-pipeline" }));
   assert.equal(run(["setup", file, "--root", root]).ok, false);
-  writeFileSync(file, JSON.stringify({ ...draft, name: null }));
+  writeFileSync(file, dump({ ...draft, name: null }));
   assert.equal(run(["setup", file, "--root", root]).ok, false);
-  writeFileSync(file, JSON.stringify({ ...draft, kind: "change" }));
+  writeFileSync(file, dump({ ...draft, kind: "change" }));
   assert.equal(run(["setup", file, "--root", root]).ok, false);
+});
+
+test("YAML with comments and unquoted dates is read, broken YAML is reported", () => {
+  const root = mkdtempSync(join(tmpdir(), "expert-teams-"));
+  const file = join(root, "draft.yaml");
+  writeFileSync(
+    file,
+    [
+      "# draft of a new pipeline",
+      "draft: draft-1",
+      "name: null",
+      "stage: brainstorming",
+      "updatedAt: 2026-10-20 # stays a string",
+      "brainstorming:",
+      "  summary: Goal",
+      "  openQuestions: []",
+      "team:",
+      "  roles: []",
+      "flow:",
+      "  phases: []",
+    ].join("\n"),
+  );
+  assert.equal(run(["setup", file]).ok, true);
+  writeFileSync(file, "draft: [draft-1\nstage: team\n");
+  const r = run(["setup", file]);
+  assert.equal(r.ok, false);
+  assert.ok(r.errors.some((e) => e.includes("not valid YAML")));
 });

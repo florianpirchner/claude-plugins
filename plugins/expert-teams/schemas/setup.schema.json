@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "expert-teams/setup.schema.json",
   "title": "Draft of /expert-teams:create or /expert-teams:modify",
-  "description": "State of the guided dialog in .claude/expert-teams/drafts/<draft>.json. Rewritten after every decision so a restart continues there.",
+  "description": "State of the guided dialog in .claude/expert-teams/drafts/<draft>.yaml. Rewritten after every decision so a restart continues there.",
   "type": "object",
   "required": ["draft", "stage", "updatedAt", "brainstorming", "team", "flow"],
   "additionalProperties": false,

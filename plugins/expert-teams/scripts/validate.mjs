@@ -1,8 +1,8 @@
 #!/usr/bin/env node
-// Validation script of the pipeline plugin. No dependencies, only Node.js >= 18.
+// Validation script of the expert-teams plugin. Only Node.js >= 18; the YAML parser js-yaml is vendored in vendor/.
 //
 //   node validate.mjs args <word> [<word> ...]   split and check the arguments of /expert-teams:run
-//   node validate.mjs pipeline <name>            check .claude/expert-teams/pipelines/<name>.json and its status files
+//   node validate.mjs pipeline <name>            check .claude/expert-teams/pipelines/<name>.yaml and its status files
 //   node validate.mjs new-name <name>            check whether a new pipeline name is valid and free
 //   node validate.mjs setup <file>               check a create or modify draft against the schema
 //   node validate.mjs list                       list the existing pipelines
@@ -17,6 +17,7 @@ import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { JSON_SCHEMA, load } from "./vendor/js-yaml.mjs";
 
 const PLUGIN_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const SLUG = /^[a-z0-9]+(-[a-z0-9]+)*$/;
@@ -104,11 +105,12 @@ function checkAgainst(schemaFile, value, label) {
   return errors;
 }
 
-function readJson(file, errors) {
+// JSON_SCHEMA keeps unquoted values like 2026-10-20 or yes as plain strings.
+function readYaml(file, errors) {
   try {
-    return JSON.parse(readFileSync(file, "utf8"));
+    return load(readFileSync(file, "utf8"), { schema: JSON_SCHEMA, filename: file });
   } catch (e) {
-    errors.push(`${file}: not valid JSON (${e.message})`);
+    errors.push(`${file}: not valid YAML (${e.message})`);
     return undefined;
   }
 }
@@ -151,7 +153,7 @@ function findCycle(phases) {
 function checkSemantics(pipeline, name, dirs) {
   const errors = [];
   const warnings = [];
-  if (pipeline.name !== name) errors.push(`name is "${pipeline.name}", but the file is called ${name}.json`);
+  if (pipeline.name !== name) errors.push(`name is "${pipeline.name}", but the file is called ${name}.yaml`);
 
   const rules = pipeline.rules;
   const hasAskHumanWhen = (rules.askHumanWhen ?? []).length > 0;
@@ -232,9 +234,9 @@ function checkStatusFiles(root, name, phaseIds) {
   const dir = join(root, "docs", "pipeline-status", name);
   if (!existsSync(dir)) return { errors, done: [] };
   const done = [];
-  for (const f of readdirSync(dir).filter((f) => f.endsWith(".json")).sort()) {
+  for (const f of readdirSync(dir).filter((f) => f.endsWith(".yaml")).sort()) {
     const file = join(dir, f);
-    const data = readJson(file, errors);
+    const data = readYaml(file, errors);
     if (data === undefined) continue;
     errors.push(...checkAgainst("status.schema.json", data, f));
     const id = f.slice(0, -5);
@@ -253,7 +255,7 @@ function listPipelines(root) {
   const dir = join(root, ".claude", "expert-teams", "pipelines");
   if (!existsSync(dir)) return [];
   return readdirSync(dir)
-    .filter((f) => f.endsWith(".json") && statSync(join(dir, f)).isFile())
+    .filter((f) => f.endsWith(".yaml") && statSync(join(dir, f)).isFile())
     .map((f) => f.slice(0, -5))
     .sort();
 }
@@ -280,7 +282,7 @@ function cmdArgs(root, allWords) {
   if (second === undefined) return { ok: true, name, mode: "all", phase: null, humanInTheLoop };
   if (second === "status") return { ok: true, name, mode: "status", phase: null, humanInTheLoop };
   const errors = [];
-  const pipeline = readJson(join(root, ".claude", "expert-teams", "pipelines", `${name}.json`), errors);
+  const pipeline = readYaml(join(root, ".claude", "expert-teams", "pipelines", `${name}.yaml`), errors);
   const phaseIds = Array.isArray(pipeline?.phases) ? pipeline.phases.map((p) => p.id) : [];
   if (!phaseIds.includes(second)) {
     return { ...fail(`"${second}" is neither "status" nor a phase of ${name}.`), phases: phaseIds };
@@ -290,10 +292,10 @@ function cmdArgs(root, allWords) {
 
 function cmdPipeline(root, name, extraDirs) {
   if (!name || !SLUG.test(name)) return { ok: false, errors: [`Invalid name "${name ?? ""}"`] };
-  const file = join(root, ".claude", "expert-teams", "pipelines", `${name}.json`);
+  const file = join(root, ".claude", "expert-teams", "pipelines", `${name}.yaml`);
   if (!existsSync(file)) return { ok: false, errors: [`${file} does not exist`], pipelines: listPipelines(root) };
   const errors = [];
-  const pipeline = readJson(file, errors);
+  const pipeline = readYaml(file, errors);
   if (pipeline === undefined) return { ok: false, errors };
   errors.push(...checkAgainst("pipeline.schema.json", pipeline, name));
   if (errors.length) return { ok: false, errors };
@@ -309,7 +311,7 @@ function cmdNewName(root, name) {
   if (!name || !SLUG.test(name)) {
     errors.push(`"${name ?? ""}" is not a valid name: only lowercase letters, digits and single hyphens, e.g. optimize-performance`);
   } else {
-    if (existsSync(join(root, ".claude", "expert-teams", "pipelines", `${name}.json`))) errors.push(`.claude/expert-teams/pipelines/${name}.json already exists`);
+    if (existsSync(join(root, ".claude", "expert-teams", "pipelines", `${name}.yaml`))) errors.push(`.claude/expert-teams/pipelines/${name}.yaml already exists`);
     if (existsSync(join(root, ".claude", "skills", name))) errors.push(`A skill .claude/skills/${name}/ already exists`);
     if (existsSync(join(root, "docs", "pipeline-status", name))) errors.push(`docs/pipeline-status/${name}/ already exists`);
   }
@@ -319,12 +321,12 @@ function cmdNewName(root, name) {
 function cmdSetup(root, file) {
   if (!file) return { ok: false, errors: ["No file given"] };
   const errors = [];
-  const data = readJson(resolve(file), errors);
+  const data = readYaml(resolve(file), errors);
   if (data !== undefined) errors.push(...checkAgainst("setup.schema.json", data, "draft"));
   if (!errors.length && data.kind === "modify") {
     if (!data.name) errors.push("draft: a modify draft needs the name of the pipeline it changes");
-    else if (!existsSync(join(root, ".claude", "expert-teams", "pipelines", `${data.name}.json`))) {
-      errors.push(`draft: .claude/expert-teams/pipelines/${data.name}.json does not exist`);
+    else if (!existsSync(join(root, ".claude", "expert-teams", "pipelines", `${data.name}.yaml`))) {
+      errors.push(`draft: .claude/expert-teams/pipelines/${data.name}.yaml does not exist`);
     }
   }
   return { ok: errors.length === 0, errors };

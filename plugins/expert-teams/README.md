@@ -6,7 +6,7 @@ The Claude Code plugin `expert-teams` builds expert teams: it guides you in conv
 
 | Command | What it does |
 |---|---|
-| `/expert-teams:create [<name>]` | Guided dialog in five stages: brainstorming, grill me, team, flow, generate. In grill me the orchestrator first analyses the brainstorming for open points and contradictions, then asks you about them one by one. You decide when a stage is finished. At the end it creates agent files, `.claude/expert-teams/pipelines/<name>.json` and a skill `/<name>`. |
+| `/expert-teams:create [<name>]` | Guided dialog in five stages: brainstorming, grill me, team, flow, generate. In grill me the orchestrator first analyses the brainstorming for open points and contradictions, then asks you about them one by one. You decide when a stage is finished. At the end it creates agent files, `.claude/expert-teams/pipelines/<name>.yaml` and a skill `/<name>`. |
 | `/expert-teams:modify <name>` | Guided change of an existing pipeline: add or remove roles and phases, change pairs, order or rules. Same stages and draft as creating, but starting from the current pipeline. Shows the differences before it writes. |
 | `/expert-teams:run <name> [status \| <phase-id>] [--autonomous \| --as-needed \| --always]` | Runs a pipeline: all open phases, only the state, or exactly one phase. The flag overrides the human-in-the-loop level for this run. |
 | `/expert-teams:status [<name>]` | Shows the state of all pipelines or one, and open drafts. Changes nothing. |
@@ -23,19 +23,21 @@ From the marketplace in [florianpirchner/claude-plugins](https://github.com/flor
 ```
 For local development, `/plugin marketplace add <path-to-repo>` works too.
 
-Requirements in the target project: git, Node.js 18 or later for the validation script, and `gh` if phases are delivered via pull request.
+Requirements in the target project: git, Node.js 18 or later for the validation script (its YAML parser js-yaml is bundled in `scripts/vendor/`, nothing to install), and `gh` if phases are delivered via pull request.
 
 ## What lives where (in the target project)
 
 | Path | Content |
 |---|---|
-| `.claude/expert-teams/pipelines/<name>.json` | The pipeline: rules, phases, roles, tasks. Schema: `schemas/pipeline.schema.json`. |
-| `.claude/expert-teams/drafts/<draft>.json` | State of `/expert-teams:create` and `/expert-teams:modify`. Written after every decision so a restart continues there. |
+| `.claude/expert-teams/pipelines/<name>.yaml` | The pipeline: rules, phases, roles, tasks. Schema: `schemas/pipeline.schema.json`. |
+| `.claude/expert-teams/drafts/<draft>.yaml` | State of `/expert-teams:create` and `/expert-teams:modify`. Written after every decision so a restart continues there. |
 | `.claude/agents/<agent>.md` | The roles. One self-contained file per role. |
 | `.claude/skills/<name>/SKILL.md` | The shortcut `/<name>`. |
-| `docs/pipeline-status/<name>/<phase-id>.json` | Finished phases. A phase is done when its file is on the target branch. |
+| `docs/pipeline-status/<name>/<phase-id>.yaml` | Finished phases. A phase is done when its file is on the target branch. |
 | `docs/decisions/<name>/<phase-id>.md` | Consult questions with their answers, and stalemate decisions. |
 | `.claude/worktrees/` | Worktrees of running phases. Belongs in `.gitignore`. |
+
+All data files are YAML, so the pipeline can carry `#` comments explaining its choices. The schemas in `schemas/` are JSON Schema and are checked after the YAML is read.
 
 Several pipelines live side by side, e.g. `initial-run`, `optimize-performance`, `migrate-ui-react-to-vue`. The procedure exists only once, in the plugin's `/expert-teams:run`.
 
@@ -82,7 +84,7 @@ Tests: `node --test plugins/expert-teams/scripts/validate.test.mjs`
 
 ## Example
 
-`examples/business-tool-mvp.json` is the pipeline of the internal business tool from [claude-agents-test](https://github.com/florianpirchner/claude-agents-test), and `examples/agents/` contains its 13 roles. `/expert-teams:create` uses them as inspiration.
+`examples/business-tool-mvp.yaml` is the pipeline of the internal business tool from [claude-agents-test](https://github.com/florianpirchner/claude-agents-test), and `examples/agents/` contains its 13 roles. `/expert-teams:create` uses them as inspiration.
 
 ## Limits
 

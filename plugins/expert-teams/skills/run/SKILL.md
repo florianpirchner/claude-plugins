@@ -1,6 +1,6 @@
 ---
 name: run
-description: Runs a builder/challenger pipeline from .claude/expert-teams/pipelines/<name>.json. Starts the agents phase by phase, has results reviewed and revised, settles consult questions and delivers every finished phase. Use only when the user asks for it explicitly or a pipeline skill invokes it.
+description: Runs a builder/challenger pipeline from .claude/expert-teams/pipelines/<name>.yaml. Starts the agents phase by phase, has results reviewed and revised, settles consult questions and delivers every finished phase. Use only when the user asks for it explicitly or a pipeline skill invokes it.
 argument-hint: "<name> [status | <phase-id>] [--autonomous | --as-needed | --always]"
 model: opus
 ---
@@ -28,7 +28,7 @@ node <plugin>/scripts/validate.mjs args -- '<word1>' '<word2>' ...
   - `mode: phase`: run only this one phase, provided its dependencies are done
   - `humanInTheLoop`: a level given for this run, or `null`
 
-Below, `<name>` is the checked name and `P` is the file `.claude/expert-teams/pipelines/<name>.json`.
+Below, `<name>` is the checked name and `P` is the file `.claude/expert-teams/pipelines/<name>.yaml`.
 
 ## 1. Determine the state
 
@@ -39,7 +39,7 @@ Below, `<name>` is the checked name and `P` is the file `.claude/expert-teams/pi
    ```
    On `"ok": false` start nothing, show all `errors` and stop. Do not repair the file yourself. Show `warnings` once and continue.
 3. Read the project's `CLAUDE.md` if there is one. Its rules apply in addition to `rules`.
-4. A phase is `done` if it is listed in `done` of the validation output, i.e. `docs/pipeline-status/<name>/<phase-id>.json` exists on `<base>` with `"status": "done"`. Everything else is open.
+4. A phase is `done` if it is listed in `done` of the validation output, i.e. `docs/pipeline-status/<name>/<phase-id>.yaml` exists on `<base>` with `status: done`. Everything else is open.
 5. An open phase is **startable** if every phase in its `dependsOn` is `done`.
 
 ## 2. Sync the task list
@@ -65,7 +65,7 @@ The working directory of a phase is called `<wd>` below. Set the tasks of the st
 
 Repeat until accepted, at most `rules.maxRounds` times:
 
-**Choose the model.** For every agent call: the phase's `models[mode]`, else `rules.models[mode]`, else `opus`. `sonnet` and `haiku` apply only if they are explicitly in the JSON. Pass the model to the Agent tool as `model`.
+**Choose the model.** For every agent call: the phase's `models[mode]`, else `rules.models[mode]`, else `opus`. `sonnet` and `haiku` apply only if they are explicitly in the pipeline file. Pass the model to the Agent tool as `model`.
 
 **Remember agent ids.** The Agent tool result contains an agent id. Note it per role and round: you need it to resume the role after a consult question (section 5).
 
@@ -169,9 +169,19 @@ If a phase has `workPackages`, read `workPackages.from` (on `<base>`) and treat 
 
 When a phase or package is accepted:
 1. Check the `acceptance` criteria and that all `outputs` exist. If something is missing, go back to step 4.
-2. Write `docs/pipeline-status/<name>/<phase-id>.json` (for packages `<phase-id>-<package-id>.json`) in `<wd>`:
-   ```json
-   { "pipeline": "<name>", "phase": "<id>", "status": "done", "rounds": 2, "verdicts": { "<agent>": "accepted" }, "consults": { "<role>": 1, "human": 1 }, "decisions": "docs/decisions/<name>/<id>.md", "finishedAt": "<ISO time>" }
+2. Write `docs/pipeline-status/<name>/<phase-id>.yaml` (for packages `<phase-id>-<package-id>.yaml`) in `<wd>`:
+   ```yaml
+   pipeline: <name>
+   phase: <id>
+   status: done
+   rounds: 2
+   verdicts:
+     <agent>: accepted
+   consults:
+     <role>: 1
+     human: 1
+   decisions: docs/decisions/<name>/<id>.md
+   finishedAt: <ISO time>
    ```
 3. Commit in `<wd>` (in code phases only after a successful `rules.preCommit`). Then, depending on `rules.delivery`:
    - `pr-merge`: push the branch, create a pull request into `<base>` and merge it right away.
