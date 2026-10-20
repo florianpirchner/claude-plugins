@@ -1,112 +1,205 @@
 # expert-teams
 
-The Claude Code plugin `expert-teams` builds expert teams: it guides you in conversation to a builder/challenger pipeline and then runs it. Each phase is built by its builders and checked by its reviewers until all of them accept or the maximum number of rounds is reached.
+**Describe your idea, and a team of expert agents builds it: in every phase builders create, reviewers challenge, until all of them accept.**
+
+`expert-teams` is a Claude Code plugin. It talks you through your project until a pipeline of phases and roles is clear, writes that pipeline as a commented YAML file, and then runs it with subagents: in parallel where phases do not depend on each other, in git worktrees, with a pull request per phase. Questions about money, scope or contradictions come to you; everything else the team settles itself and writes down.
+
+This is the example pipeline from [`examples/business-tool-mvp.yaml`](examples/business-tool-mvp.yaml) in the middle of a run, as `/expert-teams:status` draws it (B = builder):
+
+```mermaid
+flowchart TD
+  p0["<b>requirements</b><br/>B: product-manager<br/>done, 2 rounds"]:::done
+  p1["<b>calculation-forecast</b><br/>B: controller<br/>done, 2 rounds"]:::done
+  p2["<b>billing-rules</b><br/>B: billing<br/>done, 2 rounds"]:::done
+  p3["<b>views</b><br/>B: ux-dataviz<br/>done, 2 rounds"]:::done
+  p4["<b>security-concept</b><br/>B: privacy-security<br/>done, 1 round"]:::done
+  p5["<b>data-model</b><br/>B: database-expert<br/>running, round 1"]:::running
+  p6["<b>architecture</b><br/>B: software-architect<br/>open"]:::open
+  p7["<b>test-concept</b><br/>B: tester<br/>waiting for you"]:::waiting
+  p8["<b>infrastructure</b><br/>B: devops<br/>open"]:::open
+  p9["<b>implementation</b><br/>B: backend-developer, frontend-developer, database-expert<br/>open"]:::open
+  p10["<b>acceptance</b><br/>B: tester<br/>open"]:::open
+  p0 --> p1
+  p0 --> p2
+  p0 --> p3
+  p0 --> p4
+  p1 --> p5
+  p2 --> p5
+  p4 --> p5
+  p5 --> p6
+  p3 --> p6
+  p1 --> p7
+  p2 --> p7
+  p6 --> p8
+  p8 --> p9
+  p7 --> p9
+  p9 --> p10
+  classDef done fill:#d8f0dc,stroke:#2e7d32,color:#1b3a20
+  classDef running fill:#fff1c2,stroke:#b7860b,color:#4a3700
+  classDef waiting fill:#fadbd8,stroke:#c62828,color:#4a1010
+  classDef open fill:#eeeeee,stroke:#9e9e9e,color:#4a4a4a
+```
+
+## Installation
+
+```
+/plugin marketplace add florianpirchner/claude-plugins
+/plugin install expert-teams@florianpirchner
+```
+
+To offer the plugin to everyone who opens a project, add it to the project's `.claude/settings.json`:
+
+```json
+{
+  "extraKnownMarketplaces": {
+    "florianpirchner": {
+      "source": { "source": "github", "repo": "florianpirchner/claude-plugins" }
+    }
+  },
+  "enabledPlugins": {
+    "expert-teams@florianpirchner": true
+  }
+}
+```
+
+Requirements in the target project: git, Node.js 18 or later (for the bundled check scripts, nothing to install) and `gh` if phases are delivered as pull requests. Update with `/plugin marketplace update florianpirchner`.
+
+## How it works
+
+### 1. Create the pipeline together
+
+`/expert-teams:create` is a conversation in five stages. You decide when a stage is finished, and a restart continues where you left off.
+
+| Stage | What happens |
+|---|---|
+| **Brainstorming** | You tell your idea freely. Claude follows up with open questions, one at a time, and keeps track of goals, users, inputs and limits. |
+| **Grill me** | Claude looks for gaps, contradictions and risks and asks about them one by one. It settles the technology (your fixed choice, or advice from [`references/stack-guide.md`](references/stack-guide.md)) and ends with the base questions as one list to confirm: language, delivery, branches, checks, worktrees, review rounds, models, human in the loop. |
+| **Team** | Which expert roles the project needs, each as a self-contained agent file. |
+| **Flow** | Phases, their order, and who builds and who reviews in each. |
+| **Generate** | Writes the agent files, `.claude/expert-teams/pipelines/<name>.yaml` and a shortcut `/<name>`. |
+
+### 2. Run it
+
+`/expert-teams:run <name>` (or the shortcut `/<name>`) starts every phase whose dependencies are done, several at a time. Each phase runs in rounds: the builders write, the reviewers check in parallel, and the builders rework the blocking findings, until all reviewers accept or `maxRounds` is reached. Claude Code's agent map shows the team at work:
+
+<img src="docs/images/agent-map.png" alt="Agent map: the orchestrator with builders and parallel reviewers of several phases" width="640">
+
+### 3. Answer what only you can decide
+
+When a role hits a question it cannot answer from the inputs, it pauses and the orchestrator gets the answer: from another role, or from you if it is one of your cases (`askHumanWhen`, for example money rules). You get the question with options and a recommendation; the role then continues with its full context.
+
+<img src="docs/images/questions.png" alt="Consult questions from the controller with recommended options" width="760">
+
+### 4. Follow the progress
+
+`/expert-teams:status` (or `/<name> status`) shows where every phase stands, what it waits for and how often you were asked:
+
+<img src="docs/images/status.png" alt="Status table with done, running and waiting phases" width="700">
+
+With every delivered phase the run also updates `docs/pipeline-status/<name>/README.md` (the Mermaid chart above, shown by GitHub) and `pipeline.html`, one file without dependencies: tap a phase for its task, builders, reviewers and acceptance criteria.
+
+<img src="docs/images/pipeline-html.png" alt="pipeline.html with the details of the data-model phase" width="600">
 
 ## Commands
 
 | Command | What it does |
 |---|---|
-| `/expert-teams:create [<name>]` | Guided dialog in five stages: brainstorming, grill me, team, flow, generate. In brainstorming you tell your idea freely and Claude guides lightly with open follow-up questions. Grill me then settles the technology (your own choice, or advice from `references/stack-guide.md` written to `docs/input/tech-stack.md`), asks about open points and contradictions one by one, and ends with the base questions as one list to confirm. You decide when a stage is finished. At the end it creates agent files, `.claude/expert-teams/pipelines/<name>.yaml` and a skill `/<name>`. |
-| `/expert-teams:modify <name>` | Guided change of an existing pipeline: add or remove roles and phases, change pairs, order or rules. Same stages and draft as creating, but starting from the current pipeline. Shows the differences before it writes. |
-| `/expert-teams:run <name> [status \| <phase-id>] [--autonomous \| --as-needed \| --always]` | Runs a pipeline: all open phases, only the state, or exactly one phase. The flag overrides the human-in-the-loop level for this run. |
-| `/expert-teams:status [<name>]` | Shows the state of all pipelines or one, and open drafts, and writes a chart per pipeline (see below). |
-| `/<name> [status \| <phase-id>] [--autonomous \| …]` | Shortcut generated by `/expert-teams:create` for `/expert-teams:run <name> …`. |
+| `/expert-teams:create [<name>]` | Creates a pipeline in the five stages above. |
+| `/expert-teams:modify <name>` | Changes an existing pipeline in the same stages: roles, phases, pairs, order or rules. Shows the differences before it writes. |
+| `/expert-teams:run <name> [status \| <phase-id>] [--autonomous \| --as-needed \| --always]` | Runs all open phases, shows the state, or runs exactly one phase. The flag overrides the human-in-the-loop level for this run. |
+| `/expert-teams:status [<name>]` | Shows the state of all pipelines or one, open drafts, and writes the views. |
+| `/<name> …` | Shortcut for `/expert-teams:run <name> …`, generated by create. |
 
-Claude Code puts the plugin name in front of every plugin skill, so all four commands start with `/expert-teams:` and appear together when you type `/expert-teams`.
+## What you get
 
-## Installation
-
-From the marketplace in [florianpirchner/claude-plugins](https://github.com/florianpirchner/claude-plugins):
-```
-/plugin marketplace add florianpirchner/claude-plugins
-/plugin install expert-teams@florianpirchner
-```
-For local development, `/plugin marketplace add <path-to-repo>` works too.
-
-Requirements in the target project: git, Node.js 18 or later for the validation script (its YAML parser js-yaml is bundled in `scripts/vendor/`, nothing to install), and `gh` if phases are delivered via pull request.
-
-## What lives where (in the target project)
+<img src="docs/images/tree.png" alt="Files in the target project" width="330" align="right">
 
 | Path | Content |
 |---|---|
-| `.claude/expert-teams/pipelines/<name>.yaml` | The pipeline: rules, phases, roles, tasks. Schema: `schemas/pipeline.schema.json`. |
-| `.claude/expert-teams/drafts/<draft>.yaml` | State of `/expert-teams:create` and `/expert-teams:modify`. Written after every decision so a restart continues there. |
-| `.claude/agents/<agent>.md` | The roles. One self-contained file per role. |
+| `.claude/agents/<role>.md` | One self-contained file per role. |
+| `.claude/expert-teams/pipelines/<name>.yaml` | The pipeline: rules, phases, roles, tasks. Schema: [`schemas/pipeline.schema.json`](schemas/pipeline.schema.json). |
+| `.claude/expert-teams/drafts/` | State of create and modify, saved after every decision. |
+| `.claude/expert-teams/runs/<name>.yaml` | Live state of a run. Belongs in `.gitignore`, like `.claude/worktrees/`. |
 | `.claude/skills/<name>/SKILL.md` | The shortcut `/<name>`. |
-| `docs/pipeline-status/<name>/<phase-id>.yaml` | Finished phases. A phase is done when its file is on the integration branch (`rules.integrationBranch`, default `expert-teams/<name>`; with `none` the target branch `rules.baseBranch`). On a phase branch the same file holds the checkpoint of an unfinished phase. |
-| `docs/decisions/<name>/<phase-id>.md` | Consult questions with their answers, and stalemate decisions. |
-| `docs/pipeline-status/<name>/README.md` | Chart of the pipeline (Mermaid, top to bottom) with builders and state per phase and the reviewers below. GitHub shows it when you open the folder. Written by `/expert-teams:status` and with every delivered phase. |
-| `docs/pipeline-status/<name>/pipeline.html` | The same pipeline as one HTML file without dependencies: hover or tap a phase for builders, reviewers, tasks, round and acceptance criteria. Open it locally in a browser. |
-| `.claude/expert-teams/runs/<name>.yaml` | Live state of a running pipeline (running, round, waiting for you). Belongs in `.gitignore`. |
-| `.claude/worktrees/` | Worktrees of running phases. Belongs in `.gitignore`. |
+| `docs/input/` | Your inputs, e.g. the product vision and `tech-stack.md`. Agents read them and never change them. |
+| `docs/decisions/<name>/<phase-id>.md` | Questions with their answers, assumptions, stalemate decisions. |
+| `docs/pipeline-status/<name>/` | One status file per finished phase, plus `README.md` and `pipeline.html`. |
 
-All data files are YAML, so the pipeline can carry `#` comments explaining its choices. The schemas in `schemas/` are JSON Schema and are checked after the YAML is read.
+Several pipelines live side by side, e.g. `initial-run`, `optimize-performance`, `migrate-ui-react-to-vue`.
 
-## Languages
+<br clear="right">
 
-Everything the agents write is English by default: code, database tables and columns, API names, comments, commit messages and branch names (`rules.language.code`), documents (`rules.language.docs`) and texts the end users see (`rules.language.ui`). `/expert-teams:create` asks about it among its base questions at the end of grill me. Reviewers treat text in the wrong language as a blocking finding.
+All data files are YAML, so the pipeline explains its own choices in comments. An excerpt from the example:
 
-## Branches
+```yaml
+name: business-tool-mvp
+rules:
+  # Code, documents and user interface in English, even though the product vision is German.
+  language: { code: en, docs: en, ui: en }
+  # After three review rounds, remaining findings are decided instead of reworked again.
+  maxRounds: 3
+  delivery: pr-merge
+  baseBranch: main
+  # Lint, type check and tests before every commit in code phases.
+  preCommit: npm run check
+  # Agents settle most questions themselves; only the cases below go to the user.
+  humanInTheLoop: as-needed
+  askHumanWhen:
+    - Prices, hourly rates, margins or other money amounts
+phases:
+  - id: requirements
+    goal: Turn the MVP scope from the product vision into testable requirements.
+    dependsOn: []
+    participants:
+      - agent: product-manager
+        mode: build
+        outputs: [docs/specification/requirements.md]
+      - agent: controller
+        mode: review
+        task: Check whether calculation, forecast and reports are fully specified.
+    acceptance:
+      - Every requirement has verifiable acceptance criteria.
+```
 
-A running project should not see every phase land on `main` one by one. So the phases are merged into an integration branch, `rules.integrationBranch`, by default `expert-teams/<name>`. `/expert-teams:run` creates it from `rules.baseBranch`, merges the newest `baseBranch` into it at every start, and merges each phase pull request into it. When the last phase is done, it opens one final pull request from the integration branch into `baseBranch` and leaves it for you to review and merge. `integrationBranch: none` keeps the old behaviour: every phase goes straight into `baseBranch`. `scripts/validate.mjs` and `scripts/visualize.mjs` read the status files from the integration branch even while `main` is checked out (`--ref` picks another branch).
+## Concepts
 
-## Technology advice
+**Builders and reviewers.** Every phase has at least one builder and one reviewer. The orchestrator spawns each as a fresh subagent that only gets its task. Reviewers mark findings as blocking or not; only blocking ones start another round. After `maxRounds` the remaining findings are decided and recorded instead of reworked forever.
 
-If you have no fixed idea of the stack, grill me advises you from the hard limits to the technology: where it runs, who maintains it, users and data, offline, mobile and real time. Shared webhosting, for example, leads to PHP and MariaDB, a Docker server leaves the choice to the maintainer's language. The mapping lives in `references/stack-guide.md`; edit it to change the advice without touching the skills.
+**Consult questions.** A role may end its reply with a `CONSULT` block. The orchestrator gets the answer from the roles named in `consultWith` or from you, and resumes the role with `SendMessage`, so it keeps its full context. The orchestrator mediates because in Claude Code a subagent cannot spawn agents itself. `rules.consult` switches this on or off and limits it per round (default 3).
 
-## Crash safety
-
-A worktree may get lost (a crashed container, a cleaned-up machine); its work must not. With `rules.pushEveryRound` (default `true`) the orchestrator commits the state after every build and review step, with a checkpoint in `docs/pipeline-status/<name>/<phase-id>.yaml` (round, step, open findings, a waiting question), and pushes it to the phase branch `pipeline/<name>/<phase-id>`. A new run fetches, reads the checkpoints with `scripts/validate.mjs checkpoints <name>`, checks out the branches again and continues at the right step. At worst one step is lost. Checkpoint commits skip `rules.preCommit`; the delivery commit still runs it.
-
-Several pipelines live side by side, e.g. `initial-run`, `optimize-performance`, `migrate-ui-react-to-vue`. The procedure exists only once, in the plugin's `/expert-teams:run`.
-
-## Relations between agents
-
-| Relation | Mechanism | Used for |
-|---|---|---|
-| **delegate** | The orchestrator spawns a fresh agent with its own role that only gets its task. | Every builder and reviewer. |
-| **pair** | Builder and challenger alternate in rounds until all reviewers accept. | Every phase. |
-| **consult** | A role pauses on a side question and ends its reply with a `CONSULT` block. The orchestrator gets the answer from another role or the user and resumes the role with `SendMessage` to its agent id, so it keeps its full context. | Questions a role cannot answer from the inputs. |
-
-Why the orchestrator mediates consult questions: in Claude Code a subagent has no Agent tool, so it cannot fork or spawn agents itself (tested with Claude Code 2.1.303). Resuming a paused subagent via `SendMessage` does keep its context. Its answer then arrives as a task notification, not as a return value.
-
-## Human in the loop
-
-`rules.humanInTheLoop` sets who answers consult questions and settles stalemates:
+**Human in the loop.** `rules.humanInTheLoop` decides who answers:
 
 | Level | Behavior |
 |---|---|
-| `autonomous` | The agents and the orchestrator settle everything. Every assumption is recorded in `docs/decisions/<name>/`, so you can review it afterwards. |
-| `as-needed` (default) | Everything is settled without you, except the cases in `rules.askHumanWhen`, e.g. contradictions with the inputs, scope changes or money amounts. |
-| `always` | Every consult question and every stalemate goes to you. |
+| `autonomous` | The team settles everything and records each assumption in `docs/decisions/<name>/`. |
+| `as-needed` (default) | Only the cases in `askHumanWhen` come to you, e.g. contradictions with your inputs, scope changes, money amounts. |
+| `always` | Every question and every stalemate comes to you. |
 
-A phase can override it with its own `humanInTheLoop`, and a run with `--autonomous`, `--as-needed` or `--always`. Precedence: run flag, then phase, then `rules`, then `as-needed`.
+A phase can set its own level, and a run can override both with `--autonomous`, `--as-needed` or `--always`.
 
-`rules.consult` switches consult questions on or off (`enabled`, default `true`) and limits how often a role may pause per round (`maxPerRound`, default 3). `consultWith` on a participant names the roles the orchestrator asks first.
+**Integration branch.** Phases are not merged into `main` one by one. The run creates `expert-teams/<name>` from `baseBranch`, merges the newest `baseBranch` into it at every start, and merges every phase pull request into it. When the last phase is done it opens one final pull request into `baseBranch` and leaves it for you to review and merge. `integrationBranch: none` merges every phase straight into `baseBranch`.
 
-## Rules in the pipeline
+**Crash safety.** With `pushEveryRound` (default `true`) every build and review step is committed with a checkpoint (round, step, open findings, a waiting question) and pushed to the phase branch `pipeline/<name>/<phase-id>`. A new run, even on another machine, picks up the checkpoints and continues at the right step; at worst one step is lost.
 
-`rules` sets how phases are delivered (`pr-merge`, `pr-open`, `commit`), which check command runs before every commit in code phases (`preCommit`), whether worktrees are used, the maximum number of review rounds, the models, and the human-in-the-loop settings above.
+**Language.** Everything the agents write is English by default: code, database tables, API names, comments, commit messages, documents and UI texts (`rules.language`). You can change it in the base questions; reviewers treat text in the wrong language as a blocking finding.
 
-**Models:** the default is Opus for building and reviewing. Sonnet or Haiku apply only if they are explicitly set in `rules.models` or in a phase's `models`.
+**Models.** Opus builds and reviews by default. Sonnet or Haiku are used only where `rules.models` or a phase's `models` set them explicitly.
 
 ## Guard rails
 
 Skills are instructions the model interprets. Where interpretation would be dangerous, code checks:
 
-- `scripts/validate.mjs args` only lets `/expert-teams:run` start with an exactly existing name, `status` or a phase, plus at most one human-in-the-loop flag. Free text starts nothing.
-- `scripts/validate.mjs pipeline` checks the pipeline against the schema and additionally: name equals file name, unique phases, `dependsOn` only on existing phases, no cycles, at least one builder and one reviewer per phase, builders with `outputs`, `consultWith` only on other existing roles, consistent human-in-the-loop settings, all agent files present, valid status files.
-- `scripts/validate.mjs new-name` checks new names for format and collisions.
-- `scripts/validate.mjs setup` checks the drafts of `/expert-teams:create` and `/expert-teams:modify`.
+- `scripts/validate.mjs args` only starts a run with an exactly existing name, `status` or a phase, plus at most one human-in-the-loop flag. Free text starts nothing.
+- `scripts/validate.mjs pipeline` checks the pipeline against the schema and beyond: unique phases, existing dependencies, no cycles, a builder and a reviewer per phase, existing agent files, valid status files on the integration branch.
+- `scripts/validate.mjs checkpoints`, `new-name` and `setup` check checkpoints, new names and the drafts of create and modify.
 
-Tests: `node --test plugins/expert-teams/scripts/validate.test.mjs plugins/expert-teams/scripts/visualize.test.mjs plugins/expert-teams/scripts/checkpoints.test.mjs`
+Tests: `node --test plugins/expert-teams/scripts/*.test.mjs`
 
 ## Example
 
-`examples/business-tool-mvp.yaml` is the pipeline of the internal business tool from [claude-agents-test](https://github.com/florianpirchner/claude-agents-test), and `examples/agents/` contains its 13 roles. `/expert-teams:create` uses them as inspiration.
+[`examples/business-tool-mvp.yaml`](examples/business-tool-mvp.yaml) is the pipeline of an internal business tool (offer calculation, forecast, time tracking, monthly report) from [claude-agents-test](https://github.com/florianpirchner/claude-agents-test), and [`examples/agents/`](examples/agents) holds its 13 roles. `/expert-teams:create` uses them as inspiration.
 
 ## Limits
 
-- So far only the validation script is tested. The skills themselves have not been tested in a real run yet.
-- Whether newly created skills appear right away or only after a restart of Claude Code depends on the version.
-- After a restart of Claude Code, paused roles can no longer be resumed. The orchestrator then starts them again with their task and the answers so far.
+- After a restart of Claude Code, paused roles cannot be resumed. The orchestrator starts them again with their task and the answers so far.
+- Whether newly created skills appear right away or only after a restart of Claude Code depends on its version.
