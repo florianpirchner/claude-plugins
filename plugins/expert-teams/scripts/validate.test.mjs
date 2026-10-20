@@ -227,3 +227,26 @@ test("language codes are checked", () => {
   q.rules.language = { code: "en", comments: "de" };
   assert.equal(check(project(q)).ok, false);
 });
+
+test("setup accepts the technology of grill me", () => {
+  const root = mkdtempSync(join(tmpdir(), "expert-teams-"));
+  const file = join(root, "draft.yaml");
+  const draft = {
+    draft: "draft-1",
+    name: null,
+    stage: "grill-me",
+    updatedAt: "2026-10-20T17:00:00Z",
+    brainstorming: { summary: "Runs on a Strato webspace", openQuestions: [], confirmed: true },
+    grillMe: {
+      tech: { mode: "advised", hosting: "Strato webspace", stack: { backend: "PHP 8.3, Laravel", database: "MariaDB" }, reasons: ["Shared webhosting runs only PHP"] },
+      findings: [],
+    },
+    team: { roles: [] },
+    flow: { phases: [] },
+  };
+  writeFileSync(file, dump(draft));
+  assert.equal(run(["setup", file]).ok, true);
+  draft.grillMe.tech.mode = "guessed";
+  writeFileSync(file, dump(draft));
+  assert.equal(run(["setup", file]).ok, false);
+});
