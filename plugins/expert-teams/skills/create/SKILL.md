@@ -45,11 +45,12 @@ Argument: `$ARGUMENTS`
 
 Goal: the user tells you freely about the idea; you understand enough to grill on it.
 
-Open with a sentence like: "Tell me about your idea, in your own words and in any order. I listen, summarize and only ask where something is unclear. When you are done, I go through everything and grill you on the open points."
+Open with a sentence like: "Tell me about your idea, in your own words and in any order. I listen, ask a few questions along the way and summarize now and then. When you are done, I go through everything and grill you on the open points."
 
-- No questionnaire. Do not ask about technology, delivery, language or other rules here; that comes in stage 2. If the user mentions such things, record them.
-- Listen for: goal and result, scope and non-goals, users, inputs (documents, existing code, paths no agent may change), technology and where it runs, rules for the agents.
-- Ask back only where something is unclear or contradicts itself, at most three short questions at once.
+- No questionnaire, but guide lightly: after the user's first story, ask open follow-up questions, one at a time, about what is still missing: Who uses it? Which problem does it solve? What matters most? What must a first version do? What is explicitly out? Which documents or existing code are the basis?
+- Every few answers, mirror back a short summary in your own words so the user can correct it.
+- Do not ask about technology, delivery, language or other rules here; that comes in stage 2. If the user mentions such things, record them.
+- Ask back right away where something is unclear or contradicts itself.
 - After every answer record `summary`, `openQuestions` and, if the user named any, `rules` in the draft. Mark in `summary` everything the user already said about technology, hosting and rules, so stage 2 only confirms it.
 
 When the user says they are done, show a short summary and ask for confirmation. Only after confirmation: `brainstorming.confirmed = true`, `stage = "grill-me"`.
