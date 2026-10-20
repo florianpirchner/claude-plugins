@@ -123,7 +123,7 @@ Goal: settle phases, pairs and order.
 
 1. Propose the phases as a table: phase, goal, depends on, builders, reviewers, result files, and where it helps, who builders consult (`consultWith`). Then show the flow as a simple sequence or waves, e.g. "Wave 1: requirements. Wave 2: views, data-model (parallel)".
 2. Guidelines:
-   - Every phase has a clear result (files in `outputs`) and checkable `acceptance` criteria.
+   - Every phase has a clear result (files in `outputs`) and checkable `acceptance` criteria. Name output files after their content (`acceptance.md`, `test-concept.md`), not `report.md`, `summary.md` or `findings.md`: Claude Code may block subagents from writing files named like reports.
    - Phases without mutual dependencies run in parallel.
    - Code phases get `code: true`.
    - Many similar implementation tasks go into one phase with `workPackages`. An earlier phase then produces the package list (`from`), e.g. the architecture.
