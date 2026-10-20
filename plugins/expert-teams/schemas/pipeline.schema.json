@@ -88,6 +88,28 @@
           "description": "Paths no agent may change, e.g. the user's inputs.",
           "$ref": "#/$defs/paths"
         },
+        "language": {
+          "type": "object",
+          "description": "Languages of what the agents write, as ISO 639-1 codes. Each defaults to en.",
+          "additionalProperties": false,
+          "properties": {
+            "code": {
+              "type": "string",
+              "pattern": "^[a-z]{2}$",
+              "description": "Source code: identifiers, database tables and columns, API paths and fields, code comments, log messages, test names, commit messages and branch names."
+            },
+            "docs": {
+              "type": "string",
+              "pattern": "^[a-z]{2}$",
+              "description": "Documents: specifications, architecture, decision logs, READMEs."
+            },
+            "ui": {
+              "type": "string",
+              "pattern": "^[a-z]{2}$",
+              "description": "Texts the end users see in the product."
+            }
+          }
+        },
         "notes": {
           "description": "Further project rules in plain text, included in every agent task.",
           "$ref": "#/$defs/texts"

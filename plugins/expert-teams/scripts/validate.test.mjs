@@ -217,3 +217,13 @@ test("YAML with comments and unquoted dates is read, broken YAML is reported", (
   assert.equal(r.ok, false);
   assert.ok(r.errors.some((e) => e.includes("not valid YAML")));
 });
+
+test("language codes are checked", () => {
+  const q = clone();
+  q.rules.language = { code: "en", docs: "de" };
+  assert.equal(check(project(q)).ok, true);
+  q.rules.language = { code: "english" };
+  assert.equal(check(project(q)).ok, false);
+  q.rules.language = { code: "en", comments: "de" };
+  assert.equal(check(project(q)).ok, false);
+});

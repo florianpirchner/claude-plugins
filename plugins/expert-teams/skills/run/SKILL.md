@@ -82,6 +82,8 @@ Repeat until accepted, at most `rules.maxRounds` times:
 
 **Remember agent ids.** The Agent tool result contains an agent id. Note it per role and round: you need it to resume the role after a consult question (section 5).
 
+**Languages.** `<code>`, `<docs>` and `<ui>` below are `rules.language.code`, `.docs` and `.ui`, each `en` if not set. Your own commit messages, branch names and pull request texts follow `<code>`.
+
 **a) Build or revise.** Start every role with `mode: build` via the Agent tool (`subagent_type` = value of `agent`, `model` = build model) with this task:
 
 ```
@@ -96,6 +98,7 @@ To create: <outputs>
 Acceptance criteria of the phase: <acceptance>
 
 Rules: Do not change anything under <rules.readOnly>. Write open questions at the end of your document.
+Languages: code in <code>: identifiers, database tables and columns, API paths and fields, code comments, log messages, test names and commit messages. Documents in <docs>. Texts the end users see in <ui>. Translate terms from the inputs instead of copying them, e.g. a German "Stundensatz" becomes "hourly_rate".
 <every line of rules.notes>
 [code phase and rules.preCommit set:] Run <rules.preCommit> before every commit. Commit only when it succeeds. Do not disable or skip the check.
 <consult block, see section 5>
@@ -114,6 +117,7 @@ Focus: <focus>
 To review: <outputs of the phase>
 Background (read): <inputs of the pipeline and the phase>
 Acceptance criteria of the phase: <acceptance>
+Languages: code in <code>: identifiers, database tables and columns, API paths and fields, code comments, log messages, test names and commit messages. Documents in <docs>. Texts the end users see in <ui>. Translate terms from the inputs instead of copying them, e.g. a German "Stundensatz" becomes "hourly_rate". Text in the wrong language is a blocking finding.
 <every line of rules.notes>
 <consult block, see section 5>
 

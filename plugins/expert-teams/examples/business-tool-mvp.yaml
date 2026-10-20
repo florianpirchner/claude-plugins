@@ -8,6 +8,11 @@ description: 'Example: internal business tool (offer calculation, forecast, time
 inputs:
   - docs/input/produktvision.md
 rules:
+  # Code, documents and user interface in English, even though the product vision is German.
+  language:
+    code: en
+    docs: en
+    ui: en
   # After three review rounds, remaining findings are decided instead of reworked again.
   maxRounds: 3
   maxParallelAgents: 4
