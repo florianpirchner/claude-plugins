@@ -42,6 +42,10 @@ Requirements in the target project: git, Node.js 18 or later for the validation 
 
 All data files are YAML, so the pipeline can carry `#` comments explaining its choices. The schemas in `schemas/` are JSON Schema and are checked after the YAML is read.
 
+## Languages
+
+Everything the agents write is English by default: code, database tables and columns, API names, comments, commit messages and branch names (`rules.language.code`), documents (`rules.language.docs`) and texts the end users see (`rules.language.ui`). `/expert-teams:create` asks about it among its base questions at the start. Reviewers treat text in the wrong language as a blocking finding.
+
 ## Crash safety
 
 A worktree may get lost (a crashed container, a cleaned-up machine); its work must not. With `rules.pushEveryRound` (default `true`) the orchestrator commits the state after every build and review step, with a checkpoint in `docs/pipeline-status/<name>/<phase-id>.yaml` (round, step, open findings, a waiting question), and pushes it to the phase branch `pipeline/<name>/<phase-id>`. A new run fetches, reads the checkpoints with `scripts/validate.mjs checkpoints <name>`, checks out the branches again and continues at the right step. At worst one step is lost. Checkpoint commits skip `rules.preCommit`; the delivery commit still runs it.

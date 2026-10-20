@@ -49,7 +49,7 @@ Goal: understand what should change and why.
 
 Open with a sentence like: "What should change in the pipeline, and why? Tell me when we have it. Then I look for open points and contradictions and grill you on them."
 
-Clarify: the reason for the change, what should be different at the end, what must stay as it is, and whether rules change (delivery, `preCommit`, worktrees, `maxRounds`, models, `humanInTheLoop`, `askHumanWhen`, `consult`, `notes`). Models stay Opus unless the user explicitly wants something else.
+Clarify: the reason for the change, what should be different at the end, what must stay as it is, and whether rules change (`language`, delivery, `preCommit`, worktrees, `pushEveryRound`, `maxRounds`, models, `humanInTheLoop`, `askHumanWhen`, `consult`, `notes`). Models stay Opus unless the user explicitly wants something else. If the pipeline has no `language` yet, propose `code: en, docs: en, ui: en` and ask once.
 
 Record `summary`, `openQuestions`, `rules` and `changes` in the draft. Only after the user confirms: `brainstorming.confirmed = true`, `stage = "grill-me"`.
 

@@ -45,24 +45,29 @@ Argument: `$ARGUMENTS`
 
 Goal: understand enough to propose a team.
 
-Open with a sentence like: "Let's talk about your plan first. Tell me when we have enough. Then I go through everything, look for open points and contradictions, and grill you on them."
+**First: the base questions.** Before the open conversation, settle the project rules in one go (for `rules`, see `<plugin>/schemas/pipeline.schema.json`). Show them as one compact list with your proposed value for each, taken from the defaults below, `CLAUDE.md` and what you found in the project, and ask the user to confirm the list or name what differs. This is the one place where more than three points are asked at once.
+
+1. **Language** (`language`): code `en` (identifiers, database tables and columns, API paths and fields, code comments, log messages, test names, commit messages and branch names), documentation `en` (specifications, architecture, decision logs, READMEs), user interface texts `en` unless the inputs ask for another language. The code is English even if the user speaks another language; change it only if the user explicitly asks.
+2. **Delivery** (`delivery`): one pull request per phase merged right away (`pr-merge`), pull request left open (`pr-open`) or merged directly locally (`commit`). If `CLAUDE.md` says something about it, propose that.
+3. **Target branch** (`baseBranch`): default the current default branch.
+4. **Check before every commit** in code phases (`preCommit`), e.g. `npm run check`, or none.
+5. **Worktrees and parallelism** (`worktrees`, `maxParallelAgents`): default `true` and 4.
+6. **Checkpoints** (`pushEveryRound`): default `true`, every build and review step is committed and pushed to the phase branch so a crashed run continues there. Only `false` if the project forbids unfinished commits.
+7. **Review rounds** (`maxRounds`): default 3.
+8. **Models:** Opus for building and reviewing. Sonnet or Haiku only if the user explicitly wants them, and then only for the phases named.
+9. **Human in the loop** (`humanInTheLoop`): `as-needed` (default: only the cases in `askHumanWhen` go to the user, e.g. contradictions with the inputs, scope changes, prices and money amounts), `autonomous` (the agents settle everything and record their assumptions) or `always` (every consult question and every stalemate goes to the user). It can be overridden per phase and per run (`--autonomous`, `--as-needed`, `--always`).
+10. **Consult questions** (`consult`): a role may pause on a side question, the orchestrator gets the answer from another role or the user, and the role continues with its full context. Default on, at most 3 times per role and round.
+
+Record the answers in `brainstorming.rules` right away.
+
+**Then the conversation.** Open with a sentence like: "Now let's talk about your plan. Tell me when we have enough. Then I go through everything, look for open points and contradictions, and grill you on them."
 
 Clarify in conversation, not as a questionnaire:
 - **Goal and result:** What should exist at the end? How do you tell it is finished?
 - **Scope:** What belongs to it, what explicitly does not?
 - **Inputs:** Which requirements, documents or existing code are the basis? Which paths may no agent change (`readOnly`)?
-- **Technology:** language, frameworks, runtime, where relevant.
-- **Project rules** (for `rules`, see `<plugin>/schemas/pipeline.schema.json`):
-  - Delivery: one pull request per phase merged right away (`pr-merge`), pull request left open (`pr-open`) or merged directly locally (`commit`). If `CLAUDE.md` says something about it, propose that.
-  - Target branch (`baseBranch`), default the current default branch.
-  - Check command before every commit in code phases (`preCommit`), e.g. `npm run check`, or none.
-  - Worktrees and parallelism (`worktrees`, `maxParallelAgents`), default `true` and 4.
-  - Checkpoints (`pushEveryRound`), default `true`: after every build and review step the state is committed and pushed to the phase branch, so a crashed run continues there. Only `false` if the project forbids unfinished commits.
-  - Maximum number of review rounds (`maxRounds`), default 3.
-  - Models: the default is Opus for building and reviewing. Sonnet or Haiku only if the user explicitly wants them, and then only for the phases named.
-  - **Human in the loop** (`humanInTheLoop`): `autonomous` (the agents settle everything and record their assumptions), `as-needed` (default: only the cases in `askHumanWhen` go to the user) or `always` (every consult question and every stalemate goes to the user). For `as-needed` agree on the cases in `askHumanWhen`, e.g. contradictions with the inputs, scope changes, prices and money amounts. Mention that it can be overridden per phase and per run (`--autonomous`, `--as-needed`, `--always`).
-  - **Consult questions** (`consult`): may a role pause on a side question, let the orchestrator get the answer from another role or the user, and continue with its full context? Default on, at most 3 times per role and round.
-  - Further rules for all agents (`notes`).
+- **Technology:** programming language, frameworks, runtime, where relevant.
+- **Further rules for all agents** (`notes`).
 
 After every answer record `summary`, `openQuestions` and `rules` in the draft. When you think it is enough, say so and ask whether to move on. When the user says it is enough, show a short summary with the questions still open and ask for confirmation. Only after confirmation: `brainstorming.confirmed = true`, `stage = "grill-me"`.
 
@@ -94,7 +99,7 @@ Goal: settle the roles.
    - As few roles as possible, as many as necessary. One role per real domain perspective.
    - Roles stay technology-neutral unless a role must explicitly be bound to a technology. The technology goes into the phase's `task` later. A role like "senior-ui-dev" then works for React and for Vue.
    - Reuse existing agents if they fit. Do not change them without consent.
-   - Agent names are lowercase with hyphens.
+   - Agent names are lowercase English words with hyphens. Pipeline names and phase ids too: they become branch names.
 4. Discuss until the user is happy. Record every change in `team.roles`.
 5. Only after confirmation: `team.confirmed = true`, `stage = "flow"`.
 
