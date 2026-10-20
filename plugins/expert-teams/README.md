@@ -6,7 +6,7 @@ The Claude Code plugin `expert-teams` builds expert teams: it guides you in conv
 
 | Command | What it does |
 |---|---|
-| `/expert-teams:create [<name>]` | Guided dialog in five stages: brainstorming, grill me, team, flow, generate. In grill me the orchestrator first analyses the brainstorming for open points and contradictions, then asks you about them one by one. You decide when a stage is finished. At the end it creates agent files, `.claude/expert-teams/pipelines/<name>.yaml` and a skill `/<name>`. |
+| `/expert-teams:create [<name>]` | Guided dialog in five stages: brainstorming, grill me, team, flow, generate. In brainstorming you tell your idea freely and Claude guides lightly with open follow-up questions. Grill me then settles the technology (your own choice, or advice from `references/stack-guide.md` written to `docs/input/tech-stack.md`), asks about open points and contradictions one by one, and ends with the base questions as one list to confirm. You decide when a stage is finished. At the end it creates agent files, `.claude/expert-teams/pipelines/<name>.yaml` and a skill `/<name>`. |
 | `/expert-teams:modify <name>` | Guided change of an existing pipeline: add or remove roles and phases, change pairs, order or rules. Same stages and draft as creating, but starting from the current pipeline. Shows the differences before it writes. |
 | `/expert-teams:run <name> [status \| <phase-id>] [--autonomous \| --as-needed \| --always]` | Runs a pipeline: all open phases, only the state, or exactly one phase. The flag overrides the human-in-the-loop level for this run. |
 | `/expert-teams:status [<name>]` | Shows the state of all pipelines or one, and open drafts, and writes a chart per pipeline (see below). |
@@ -44,7 +44,11 @@ All data files are YAML, so the pipeline can carry `#` comments explaining its c
 
 ## Languages
 
-Everything the agents write is English by default: code, database tables and columns, API names, comments, commit messages and branch names (`rules.language.code`), documents (`rules.language.docs`) and texts the end users see (`rules.language.ui`). `/expert-teams:create` asks about it among its base questions at the start. Reviewers treat text in the wrong language as a blocking finding.
+Everything the agents write is English by default: code, database tables and columns, API names, comments, commit messages and branch names (`rules.language.code`), documents (`rules.language.docs`) and texts the end users see (`rules.language.ui`). `/expert-teams:create` asks about it among its base questions at the end of grill me. Reviewers treat text in the wrong language as a blocking finding.
+
+## Technology advice
+
+If you have no fixed idea of the stack, grill me advises you from the hard limits to the technology: where it runs, who maintains it, users and data, offline, mobile and real time. Shared webhosting, for example, leads to PHP and MariaDB, a Docker server leaves the choice to the maintainer's language. The mapping lives in `references/stack-guide.md`; edit it to change the advice without touching the skills.
 
 ## Crash safety
 

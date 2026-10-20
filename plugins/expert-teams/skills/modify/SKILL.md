@@ -49,13 +49,18 @@ Goal: understand what should change and why.
 
 Open with a sentence like: "What should change in the pipeline, and why? Tell me when we have it. Then I look for open points and contradictions and grill you on them."
 
-Clarify: the reason for the change, what should be different at the end, what must stay as it is, and whether rules change (`language`, delivery, `preCommit`, worktrees, `pushEveryRound`, `maxRounds`, models, `humanInTheLoop`, `askHumanWhen`, `consult`, `notes`). Models stay Opus unless the user explicitly wants something else. If the pipeline has no `language` yet, propose `code: en, docs: en, ui: en` and ask once.
+Clarify: the reason for the change, what should be different at the end, what must stay as it is, and whether rules change (`language`, delivery, `preCommit`, worktrees, `pushEveryRound`, `maxRounds`, models, `humanInTheLoop`, `askHumanWhen`, `consult`, `notes`). Models stay Opus unless the user explicitly wants something else.
 
 Record `summary`, `openQuestions`, `rules` and `changes` in the draft. Only after the user confirms: `brainstorming.confirmed = true`, `stage = "grill-me"`.
 
 ## Stage 2: Grill me
 
-Same as stage 2 of `/expert-teams:create`: analyse the draft against the current pipeline, its status files, `CLAUDE.md` and the inputs, record open points, contradictions and risks in `grillMe.findings`, and grill the user on them until none is `open`. Look especially for changes that contradict done phases, other pipelines that use the same agents, and rules that no longer fit. Only after confirmation: `grillMe.confirmed = true`, `stage = "team"`.
+Same three parts as stage 2 of `/expert-teams:create`, limited to what the change touches:
+- **Technology:** only if the change touches the stack or the hosting. Then read `docs/input/tech-stack.md`, ask "fixed idea or advice?" as in create, and update the file with the user's consent.
+- **Open points and contradictions:** analyse the draft against the current pipeline, its status files, `CLAUDE.md` and the inputs, record them in `grillMe.findings` and grill until none is `open`. Look especially for changes that contradict done phases, other pipelines that use the same agents, and rules that no longer fit.
+- **Base questions:** show the current `rules` as the confirm list, with the changed values marked. If the pipeline has no `language` yet, propose `code: en, docs: en, ui: en`.
+
+Only after confirmation: `grillMe.confirmed = true`, `stage = "team"`.
 
 ## Stage 3: Team
 

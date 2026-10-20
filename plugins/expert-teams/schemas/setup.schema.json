@@ -48,6 +48,19 @@
       "required": ["findings"],
       "additionalProperties": false,
       "properties": {
+        "tech": {
+          "type": "object",
+          "description": "Part A: the settled technology, written to docs/input/tech-stack.md at the end of stage 2.",
+          "required": ["mode"],
+          "additionalProperties": false,
+          "properties": {
+            "mode": { "type": "string", "enum": ["given", "advised"], "description": "given: the user named it. advised: worked out with references/stack-guide.md." },
+            "hosting": { "type": "string" },
+            "stack": { "type": "object", "description": "One entry per layer, e.g. backend, database, frontend.", "additionalProperties": { "type": "string" } },
+            "reasons": { "type": "array", "items": { "type": "string" } },
+            "confirmed": { "type": "boolean" }
+          }
+        },
         "findings": {
           "type": "array",
           "items": {
