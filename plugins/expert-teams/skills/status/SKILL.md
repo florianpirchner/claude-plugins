@@ -14,7 +14,7 @@ Argument: `$ARGUMENTS`
 
 1. List the pipelines: `node <plugin>/scripts/validate.mjs list`.
 2. If the argument is empty, take all pipelines. Otherwise the argument must match one of them exactly. If not, list the existing ones and stop.
-3. For every chosen pipeline: `node <plugin>/scripts/validate.mjs pipeline <name>` and read the phases from `.claude/expert-teams/pipelines/<name>.json`.
+3. For every chosen pipeline: `node <plugin>/scripts/validate.mjs pipeline <name>` and read the phases from `.claude/expert-teams/pipelines/<name>.yaml`.
 4. Print a table per pipeline: phase, status (`done`, `startable`, `waiting for …`), number of rounds and consult questions from the status file, and the human-in-the-loop level (the phase's `humanInTheLoop`, else `rules.humanInTheLoop`, else `as-needed`). Done is what is listed in `done`. Startable is an open phase whose `dependsOn` are all done.
 5. If the validation reports errors, list them below the table.
 6. List open drafts in `.claude/expert-teams/drafts/` (stage other than `done`) with kind, stage and last change, and note that `/expert-teams:create` continues create drafts and `/expert-teams:modify <name>` continues modify drafts.

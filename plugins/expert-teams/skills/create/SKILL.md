@@ -1,6 +1,6 @@
 ---
 name: create
-description: Guides the user in conversation to a new builder/challenger pipeline. Stages brainstorming, grill me, team, flow and generate. Creates agent files, .claude/expert-teams/pipelines/<name>.json and a skill /<name> at the end. Survives restarts.
+description: Guides the user in conversation to a new builder/challenger pipeline. Stages brainstorming, grill me, team, flow and generate. Creates agent files, .claude/expert-teams/pipelines/<name>.yaml and a skill /<name> at the end. Survives restarts.
 argument-hint: "[<name>]"
 disable-model-invocation: true
 model: opus
@@ -18,12 +18,12 @@ Speak the user's language. Ask at most three questions at once and make a propos
 
 ## The draft: your memory
 
-The state of the conversation lives in `.claude/expert-teams/drafts/<draft>.json` and follows the schema `<plugin>/schemas/setup.schema.json`. Only what is written there survives a restart.
+The state of the conversation lives in `.claude/expert-teams/drafts/<draft>.yaml` and follows the schema `<plugin>/schemas/setup.schema.json`. Only what is written there survives a restart.
 
 - Rewrite the file **after every decision and every new insight**, not only at the end of a stage. Set `updatedAt` to the current time.
 - Validate it after every write:
   ```
-  node <plugin>/scripts/validate.mjs setup .claude/expert-teams/drafts/<draft>.json
+  node <plugin>/scripts/validate.mjs setup .claude/expert-teams/drafts/<draft>.yaml
   ```
   On `"ok": false` fix the file right away.
 - Keep `brainstorming.summary` as a complete, current summary, not a transcript. A new conversation partner must be able to continue with it alone.
@@ -117,7 +117,7 @@ Goal: settle phases, pairs and order.
 
 1. **Name.** If `name` is not settled yet, propose one from the goal (e.g. `optimize-performance`) and ask for confirmation. Check it with `node <plugin>/scripts/validate.mjs new-name <name>` and ask for another one on errors. Record it in the draft.
 2. **Agents.** For every role with source `new` or `example`, create the file `.claude/agents/<agent>.md` from the template `<plugin>/templates/agent.md`. Every file is self-contained and mentions no other agents. `model: opus`, unless the user explicitly set something else for the role. If the file already exists, do not overwrite it, ask.
-3. **Pipeline.** Write `.claude/expert-teams/pipelines/<name>.json` with `schemaVersion: 1`, `name`, `description`, `inputs`, `rules` from the brainstorming and `phases` from the flow. Validate it:
+3. **Pipeline.** Write `.claude/expert-teams/pipelines/<name>.yaml` with `schemaVersion: 1`, `name`, `description`, `inputs`, `rules` from the brainstorming and `phases` from the flow. Add a short `#` comment wherever a choice is not obvious, e.g. why a phase has its own `humanInTheLoop` or why a rule exists. Validate it:
    ```
    node <plugin>/scripts/validate.mjs pipeline <name>
    ```

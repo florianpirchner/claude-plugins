@@ -1,0 +1,405 @@
+# Example pipeline of the expert-teams plugin: the internal business tool from
+# claude-agents-test (offer calculation, forecast, time tracking, monthly report).
+# Each phase is built by its build roles and checked by its review roles.
+# Schema: schemas/pipeline.schema.json
+schemaVersion: 1
+name: business-tool-mvp
+description: 'Example: internal business tool (offer calculation, forecast, time tracking, monthly report) from requirements document to acceptance.'
+inputs:
+  - docs/input/produktvision.md
+rules:
+  # After three review rounds, remaining findings are decided instead of reworked again.
+  maxRounds: 3
+  maxParallelAgents: 4
+  # Opus builds and reviews everywhere; a phase can set its own models if needed.
+  models:
+    build: opus
+    review: opus
+  # Every phase becomes a pull request that is merged right away, as CLAUDE.md requires.
+  delivery: pr-merge
+  baseBranch: main
+  # Lint, type check and tests before every commit in code phases.
+  preCommit: npm run check
+  worktrees: true
+  # Flo's inputs: agents read them but never change them.
+  readOnly:
+    - docs/input/
+  notes:
+    - Open questions and contradictions in the inputs are recorded as open questions in the phase's decision log.
+  # Agents settle most questions themselves; only the cases below go to the user.
+  humanInTheLoop: as-needed
+  askHumanWhen:
+    - A contradiction with or gap in docs/input/
+    - A change of the MVP scope
+    - Prices, hourly rates, margins or other money amounts
+    - Anything that affects how customers are billed
+  # A builder may pause on a side question, get the answer from another role and continue.
+  consult:
+    enabled: true
+    maxPerRound: 3
+phases:
+  # Wave 1: requirements. The domain phases (calculation, billing, views, security)
+  # build on it in parallel; architecture and data model follow, then implementation.
+  - id: requirements
+    goal: Turn the MVP scope from the product vision into testable requirements.
+    dependsOn: []
+    inputs:
+      - docs/input/produktvision.md
+    participants:
+      - agent: product-manager
+        mode: build
+        task: Derive user stories and requirements with IDs and acceptance criteria from the product vision.
+        focus:
+          - Customers and hourly rates
+          - Offer calculation
+          - Time tracking
+          - Forecast
+          - Monthly report
+          - Login with a shared password
+        outputs:
+          - docs/specification/requirements.md
+      - agent: consultant-user
+        mode: review
+        task: Check whether the time tracking requirements work quickly and with few errors in everyday use.
+        focus:
+          - Week view
+          - Booking after the fact
+          - Corrections
+          - Wrong bookings
+      - agent: controller
+        mode: review
+        task: Check whether calculation, forecast and reports are fully specified from a business point of view.
+        focus:
+          - Risk buffer and discount
+          - Fixed price vs. time and materials
+          - Plan vs. actual comparison
+      - agent: project-manager
+        mode: review
+        task: Check that the scope stays within the MVP and nothing from the 'Nicht im MVP' (not in the MVP) section has slipped in.
+        focus:
+          - Scope
+          - Prioritization
+          - Open questions
+    acceptance:
+      - Every feature of the product vision is covered by at least one requirement with an ID.
+      - Every requirement has verifiable acceptance criteria.
+      - Nothing from 'Nicht im MVP' (not in the MVP) is included.
+      - Assumptions from the product vision are adopted or resolved as an open question in the decisionLog.
+  - id: calculation-forecast
+    goal: Define the calculation rules for offer calculation, forecast and monthly report precisely.
+    dependsOn:
+      - requirements
+    inputs:
+      - docs/input/produktvision.md
+      - docs/specification/requirements.md
+    participants:
+      - agent: controller
+        mode: build
+        task: Describe every formula for calculation, forecast and metrics with its rounding rule and at least one worked example.
+        focus:
+          - Offer price
+          - Spreading fixed prices across months
+          - Revenue per month
+          - Plan vs. actual variance
+          - Margin
+        outputs:
+          - docs/specification/calculation-forecast.md
+      - agent: tester
+        mode: review
+        task: Check that every formula is unambiguous and testable.
+        focus:
+          - Rounding
+          - Month boundaries
+          - Zero and boundary values
+      - agent: product-manager
+        mode: review
+        task: Check that the calculation rules cover the requirements completely and add no extra scope.
+    acceptance:
+      - Every formula has an example with concrete numbers and a result.
+      - Rounding rules and when rounding happens are defined.
+      - No open questions about calculation rules remain.
+  - id: billing-rules
+    goal: Define when and at what value booked time is billed.
+    dependsOn:
+      - requirements
+    inputs:
+      - docs/input/produktvision.md
+      - docs/specification/requirements.md
+    participants:
+      - agent: billing
+        mode: build
+        task: Describe the rules for billable time, hourly rate validity, billing against fixed-price budgets and month-end closing, each with examples.
+        focus:
+          - Directly billable
+          - Fixed-price budget consumption
+          - Budget overrun
+          - Rate change on a cutoff date
+          - Lock after month-end closing
+        outputs:
+          - docs/specification/billing-rules.md
+      - agent: tester
+        mode: review
+        task: Check that every rule is unambiguous and testable.
+        focus:
+          - Cutoff dates
+          - Month boundaries
+          - Corrections after closing
+      - agent: controller
+        mode: review
+        task: Check that the billing rules are consistent with the revenue metrics and the forecast.
+    acceptance:
+      - Every rule has at least one example with a result.
+      - For every booking it is unambiguous whether and at what value it is billed.
+      - Month-end closing and its consequences are fully described.
+  - id: views
+    goal: Describe pages, user flows and charts.
+    dependsOn:
+      - requirements
+    inputs:
+      - docs/specification/requirements.md
+    participants:
+      - agent: ux-dataviz
+        mode: build
+        task: Describe every page with its purpose, content, filters and states, and choose the chart types for the dashboard.
+        focus:
+          - Time tracking week view
+          - Offer editor
+          - Forecast entry
+          - Monthly dashboard
+          - Plan vs. actual over time
+        outputs:
+          - docs/ux/views.md
+      - agent: consultant-user
+        mode: review
+        task: Walk through daily time booking and preparing an offer using the views.
+        focus:
+          - Click paths
+          - Keyboard use
+          - Time spent
+      - agent: controller
+        mode: review
+        task: Check that the dashboard shows the metrics correctly and not misleadingly.
+    acceptance:
+      - Every requirement with a user interface is assigned to a view.
+      - Every chart states the question it answers, its data source and its unit.
+      - Empty, loading and error states are described.
+  - id: security-concept
+    goal: Define login, data protection and privacy requirements.
+    dependsOn:
+      - requirements
+    inputs:
+      - docs/specification/requirements.md
+    participants:
+      - agent: privacy-security
+        mode: build
+        task: Define the security and privacy requirements with IDs. There are no users and no roles, only a single shared password read from a file on the server.
+        focus:
+          - Storing and checking the password
+          - Sessions and logout
+          - Brute-force protection
+          - Protecting confidential figures in transit and in backups
+          - OWASP Top 10
+        outputs:
+          - docs/specification/security.md
+      - agent: product-manager
+        mode: review
+        task: Check that the security requirements fit the product vision and block no feature. Users and roles are not part of the MVP.
+    acceptance:
+      - Every security requirement has an ID and is testable.
+      - The concept introduces no users, roles or user management.
+  - id: data-model
+    goal: Derive the PostgreSQL data model from the business rules.
+    dependsOn:
+      - calculation-forecast
+      - billing-rules
+      - security-concept
+    inputs:
+      - docs/specification/requirements.md
+      - docs/specification/calculation-forecast.md
+      - docs/specification/billing-rules.md
+      - docs/specification/security.md
+    participants:
+      - agent: database-expert
+        mode: build
+        task: Design tables, types, constraints and indexes, and enforce the business rules in the database wherever possible.
+        focus:
+          - numeric for money
+          - Hourly rate history
+          - Locking closed months
+          - Aggregation per month
+        outputs:
+          - docs/architecture/data-model.md
+        consultWith:
+          - billing
+          - controller
+      - agent: billing
+        mode: review
+        task: Check that every billing rule can be represented in the data model.
+      - agent: controller
+        mode: review
+        task: Check that all metrics and the forecast can be calculated from the data model.
+    acceptance:
+      - Every business rule can be represented in the model; rules not enforced in the database are listed.
+      - Money amounts and hours use exact data types.
+  - id: architecture
+    goal: Define the architecture and split the implementation into independent work packages.
+    dependsOn:
+      - data-model
+      - views
+    inputs:
+      - docs/input/produktvision.md
+      - docs/specification/
+      - docs/ux/views.md
+      - docs/architecture/data-model.md
+    participants:
+      - agent: software-architect
+        mode: build
+        task: Define modules, API, data flows and directory structure, and split the implementation into work packages.
+        focus:
+          - One container for frontend and backend
+          - Central calculation logic with tests
+          - Work packages without shared files
+        outputs:
+          - docs/architecture/architecture.md
+          - docs/work-packages.yaml
+        consultWith:
+          - devops
+          - privacy-security
+      - agent: devops
+        mode: review
+        task: Check that the architecture can run as one container plus PostgreSQL via docker compose.
+      - agent: privacy-security
+        mode: review
+        task: Check that every security requirement is assigned to a place in the architecture.
+      - agent: tester
+        mode: review
+        task: Check that the modules can be tested separately and every work package has a verifiable result.
+    acceptance:
+      - Every work package in docs/work-packages.yaml has id, type (backend, frontend, database), description, requirement IDs, files or directories, and dependsOn.
+      - No two work packages that can run in parallel change the same files.
+      - Every requirement is assigned to at least one work package.
+  - id: test-concept
+    goal: Derive the test strategy and test cases from the business rules.
+    dependsOn:
+      - calculation-forecast
+      - billing-rules
+    inputs:
+      - docs/specification/
+    participants:
+      - agent: tester
+        mode: build
+        task: Write the test strategy and test cases linked to the requirement IDs; turn every worked calculation example into a test case.
+        focus:
+          - Rounding
+          - Month boundaries
+          - Leap year
+          - Time zones
+          - Budget overrun
+          - Login
+        outputs:
+          - docs/test/test-concept.md
+      - agent: controller
+        mode: review
+        task: Check the expected results of the calculation test cases.
+      - agent: billing
+        mode: review
+        task: Check the expected results of the billing test cases.
+    acceptance:
+      - Every requirement has at least one test case.
+      - Every worked calculation example from the specification is a test case with an expected result.
+  - id: infrastructure
+    goal: Provide the project scaffold, container, check commands and CI.
+    dependsOn:
+      - architecture
+    inputs:
+      - docs/architecture/architecture.md
+    code: true
+    participants:
+      - agent: devops
+        mode: build
+        task: Set up the project scaffold, a multi-stage Dockerfile, docker-compose.yml with PostgreSQL, npm run check, a pre-commit hook and CI.
+        focus:
+          - docker compose up with no further steps
+          - Migrations on startup
+          - No secrets in the repo
+        outputs:
+          - Dockerfile
+          - docker-compose.yml
+          - package.json
+          - .github/workflows/ci.yml
+      - agent: software-architect
+        mode: review
+        task: Check that the scaffold and directory structure match the architecture.
+      - agent: privacy-security
+        mode: review
+        task: Check configuration and container for secrets and insecure defaults.
+    acceptance:
+      - docker compose up starts the app and the database, and the healthcheck is green.
+      - npm run check passes locally and in CI.
+      - The pre-commit hook runs npm run check.
+  - id: implementation
+    goal: Implement all work packages.
+    dependsOn:
+      - infrastructure
+      - test-concept
+    inputs:
+      - docs/specification/
+      - docs/ux/views.md
+      - docs/architecture/
+      - docs/test/test-concept.md
+    code: true
+    # The architecture phase produces the package list; each package runs as its own
+    # small phase with the builder and reviewers for its type.
+    workPackages:
+      from: docs/work-packages.yaml
+      builderByType:
+        backend: backend-developer
+        frontend: frontend-developer
+        database: database-expert
+      reviewersByType:
+        backend:
+          - tester
+          - privacy-security
+        frontend:
+          - tester
+          - ux-dataviz
+        database:
+          - tester
+          - backend-developer
+      task: Implement the work package with tests. Work only in the package's files.
+      reviewTask: Review the work package against its requirement IDs, the test concept and the architecture. Run the tests.
+    acceptance:
+      - Every work package is implemented, accepted and merged.
+      - npm run check is green on main.
+  - id: acceptance
+    goal: Accept the MVP as a whole against the product vision and requirements.
+    dependsOn:
+      - implementation
+    inputs:
+      - docs/input/produktvision.md
+      - docs/specification/
+      - docs/test/test-concept.md
+    participants:
+      - agent: tester
+        mode: build
+        task: Start the application with docker compose, run all test cases from the test concept and document the result per requirement.
+        outputs:
+          - docs/test/test-report.md
+      - agent: product-manager
+        mode: review
+        task: Check that every requirement is met.
+      - agent: controller
+        mode: review
+        task: Recalculate the monthly report for a sample month by hand.
+      - agent: billing
+        mode: review
+        task: Use sample bookings to check that billable values and budget consumption are correct.
+      - agent: consultant-user
+        mode: review
+        task: Book a full work week through the user interface and assess how well it works in everyday use.
+      - agent: project-manager
+        mode: review
+        task: Check the success criteria of the product vision and approve or reject the MVP.
+    acceptance:
+      - All success criteria of the product vision are met.
+      - There are no open blocking findings.
