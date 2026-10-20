@@ -98,7 +98,7 @@ function validateSchema(value, schema, root, path, errors) {
   }
 }
 
-function checkAgainst(schemaFile, value, label) {
+export function checkAgainst(schemaFile, value, label) {
   const schema = loadSchema(schemaFile);
   const errors = [];
   validateSchema(value, schema, schema, label, errors);
@@ -106,7 +106,7 @@ function checkAgainst(schemaFile, value, label) {
 }
 
 // JSON_SCHEMA keeps unquoted values like 2026-10-20 or yes as plain strings.
-function readYaml(file, errors) {
+export function readYaml(file, errors) {
   try {
     return load(readFileSync(file, "utf8"), { schema: JSON_SCHEMA, filename: file });
   } catch (e) {
