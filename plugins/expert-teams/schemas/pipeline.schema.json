@@ -76,6 +76,10 @@
           "type": ["string", "null"],
           "description": "Command that must succeed before every commit in code phases, e.g. npm run check. null if there is none."
         },
+        "pushEveryRound": {
+          "type": "boolean",
+          "description": "Default true: after the build step and after the review step of every round the orchestrator commits the intermediate state with a checkpoint and pushes it to the phase branch, so a crashed run continues from there. Needs a remote. Checkpoint commits skip preCommit; the delivery commit still runs it."
+        },
         "worktrees": {
           "type": "boolean",
           "description": "true: each phase runs in its own git worktree and phases run in parallel. false: phases run one after another in the main directory."

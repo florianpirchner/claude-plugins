@@ -41,6 +41,17 @@ Below, `<name>` is the checked name and `P` is the file `.claude/expert-teams/pi
 3. Read the project's `CLAUDE.md` if there is one. Its rules apply in addition to `rules`.
 4. A phase is `done` if it is listed in `done` of the validation output, i.e. `docs/pipeline-status/<name>/<phase-id>.yaml` exists on `<base>` with `status: done`. Everything else is open.
 5. An open phase is **startable** if every phase in its `dependsOn` is `done`.
+6. **Pick up interrupted work.** If a remote exists, run `git fetch origin --prune`, then:
+   ```
+   node <plugin>/scripts/validate.mjs checkpoints <name>
+   ```
+   Every entry in `checkpoints` is a phase or work package whose branch `pipeline/<name>/<id>` exists but is not done on `<base>`, read from the newer of the local and the remote branch. Such a phase is resumed, not started fresh: in step 3 its worktree is created from that branch, and if `pushed` is `false`, push the branch first. Where to continue:
+   - `no-checkpoint`: round 1, build step, on top of what the branch already holds.
+   - `in-progress` with `step: build`: the review of `round`.
+   - `in-progress` with `step: review`: evaluate `findings` (step 4c). No blocking finding open means accepted; otherwise round `round + 1` starts with these findings.
+   - `in-progress` with `question`: ask the user that question again (section 5) before anything else in this phase.
+   - `done`: the delivery commit exists but is not merged yet; continue with step 7.3.
+   Write the run file (step 3) from these entries. On `"ok": false` show the errors and treat the affected phases as `no-checkpoint`.
 
 ## 2. Sync the task list
 
@@ -55,7 +66,7 @@ With `mode: all`, all startable phases are started; with `mode: phase`, only the
 git fetch origin <base>
 git worktree add .claude/worktrees/<name>-<phase-id> -b pipeline/<name>/<phase-id> origin/<base>
 ```
-Without a remote use `<base>` instead of `origin/<base>`. If the worktree already exists (interrupted run), continue in it.
+Without a remote use `<base>` instead of `origin/<base>`. If the worktree already exists (interrupted run), continue in it. For a phase with a checkpoint (step 1.6) use its branch instead of creating one: `git worktree add .claude/worktrees/<name>-<phase-id> pipeline/<name>/<phase-id>`, or if only the remote branch exists, `git worktree add .claude/worktrees/<name>-<phase-id> -b pipeline/<name>/<phase-id> origin/pipeline/<name>/<phase-id>`.
 
 **With `rules.worktrees: false`** only one phase runs at a time, in the project directory on the branch `pipeline/<name>/<phase-id>` (create it or, after an interruption, reuse it).
 
@@ -110,6 +121,25 @@ Report findings with severity (blocking / important / note) and end with exactly
 ```
 
 A role whose reply ends with a `CONSULT` block has not finished yet. Handle it as in section 5 and only evaluate its result once it has finished.
+
+**Checkpoint.** Unless `rules.pushEveryRound` is `false`, after step a) and after step b) of every round, and whenever a question starts waiting for the user, save the intermediate state so a crashed run loses at most this step:
+1. Write `docs/pipeline-status/<name>/<phase-id>.yaml` (for packages `<phase-id>-<package-id>.yaml`) in `<wd>`:
+   ```yaml
+   pipeline: <name>
+   phase: <id>
+   status: in-progress
+   round: 2
+   step: review          # the step that just finished: build or review
+   findings:             # after a review: the open findings, short
+     - by: tester
+       severity: blocking
+       text: Margin formula has no worked example
+   question: <one line> # only while waiting for the user
+   ```
+2. Commit everything in `<wd>` with `<name>/<id>: round <n> <step> (checkpoint)`. Checkpoint commits do not run `rules.preCommit` and are allowed to be unfinished; only the delivery commit (step 7) must pass it. If the project's `CLAUDE.md` forbids such commits, tell the user and suggest `pushEveryRound: false`.
+3. If a remote exists, `git push -u origin pipeline/<name>/<id>`. If the push fails, say so once and continue; the checkpoint is still committed locally.
+
+Checkpoints never reach `<base>` on their own: delivery overwrites the file with `status: done`.
 
 **c) Evaluate.** The phase is accepted when every review role reports "accepted" and no blocking finding is open. Otherwise start the next round with all findings.
 
@@ -210,7 +240,7 @@ Stop and report instead of continuing if:
 - `rules.preCommit` fails on `<base>` after a merge and one build round does not fix it,
 - the validation script reports errors in the status files after a delivery.
 
-The report names the phase, what failed, and how to continue with `/expert-teams:run <name> <phase-id>`. The state is kept in the status files, the branches and the worktrees.
+The report names the phase, what failed, and how to continue with `/expert-teams:run <name> <phase-id>`. The state is kept in the status files, the checkpoints on the pushed phase branches and the worktrees, so a new run continues there, even on another machine or after the worktree is lost.
 
 ## 9. Wrap-up
 

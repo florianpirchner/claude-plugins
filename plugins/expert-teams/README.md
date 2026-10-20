@@ -33,7 +33,7 @@ Requirements in the target project: git, Node.js 18 or later for the validation 
 | `.claude/expert-teams/drafts/<draft>.yaml` | State of `/expert-teams:create` and `/expert-teams:modify`. Written after every decision so a restart continues there. |
 | `.claude/agents/<agent>.md` | The roles. One self-contained file per role. |
 | `.claude/skills/<name>/SKILL.md` | The shortcut `/<name>`. |
-| `docs/pipeline-status/<name>/<phase-id>.yaml` | Finished phases. A phase is done when its file is on the target branch. |
+| `docs/pipeline-status/<name>/<phase-id>.yaml` | Finished phases. A phase is done when its file is on the target branch. On a phase branch the same file holds the checkpoint of an unfinished phase. |
 | `docs/decisions/<name>/<phase-id>.md` | Consult questions with their answers, and stalemate decisions. |
 | `docs/pipeline-status/<name>/README.md` | Chart of the pipeline (Mermaid, top to bottom) with builders and state per phase and the reviewers below. GitHub shows it when you open the folder. Written by `/expert-teams:status` and with every delivered phase. |
 | `docs/pipeline-status/<name>/pipeline.html` | The same pipeline as one HTML file without dependencies: hover or tap a phase for builders, reviewers, tasks, round and acceptance criteria. Open it locally in a browser. |
@@ -41,6 +41,10 @@ Requirements in the target project: git, Node.js 18 or later for the validation 
 | `.claude/worktrees/` | Worktrees of running phases. Belongs in `.gitignore`. |
 
 All data files are YAML, so the pipeline can carry `#` comments explaining its choices. The schemas in `schemas/` are JSON Schema and are checked after the YAML is read.
+
+## Crash safety
+
+A worktree may get lost (a crashed container, a cleaned-up machine); its work must not. With `rules.pushEveryRound` (default `true`) the orchestrator commits the state after every build and review step, with a checkpoint in `docs/pipeline-status/<name>/<phase-id>.yaml` (round, step, open findings, a waiting question), and pushes it to the phase branch `pipeline/<name>/<phase-id>`. A new run fetches, reads the checkpoints with `scripts/validate.mjs checkpoints <name>`, checks out the branches again and continues at the right step. At worst one step is lost. Checkpoint commits skip `rules.preCommit`; the delivery commit still runs it.
 
 Several pipelines live side by side, e.g. `initial-run`, `optimize-performance`, `migrate-ui-react-to-vue`. The procedure exists only once, in the plugin's `/expert-teams:run`.
 
@@ -83,7 +87,7 @@ Skills are instructions the model interprets. Where interpretation would be dang
 - `scripts/validate.mjs new-name` checks new names for format and collisions.
 - `scripts/validate.mjs setup` checks the drafts of `/expert-teams:create` and `/expert-teams:modify`.
 
-Tests: `node --test plugins/expert-teams/scripts/validate.test.mjs plugins/expert-teams/scripts/visualize.test.mjs`
+Tests: `node --test plugins/expert-teams/scripts/validate.test.mjs plugins/expert-teams/scripts/visualize.test.mjs plugins/expert-teams/scripts/checkpoints.test.mjs`
 
 ## Example
 

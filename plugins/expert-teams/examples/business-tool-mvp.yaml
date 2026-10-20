@@ -20,6 +20,8 @@ rules:
   baseBranch: main
   # Lint, type check and tests before every commit in code phases.
   preCommit: npm run check
+  # Commit and push every build and review step, so a crashed run loses at most one step.
+  pushEveryRound: true
   worktrees: true
   # Flo's inputs: agents read them but never change them.
   readOnly:

@@ -2,14 +2,39 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "expert-teams/status.schema.json",
   "title": "Phase status",
-  "description": "State of a phase or work package in docs/pipeline-status/<name>/<phase-id>.yaml. A phase is done when this file exists on baseBranch with status done.",
+  "description": "State of a phase or work package in docs/pipeline-status/<name>/<phase-id>.yaml. A phase is done when this file exists on baseBranch with status done. On the phase branch the same file holds the checkpoint of an unfinished phase (status in-progress) until delivery replaces it.",
   "type": "object",
   "required": ["pipeline", "phase", "status"],
   "additionalProperties": false,
   "properties": {
     "pipeline": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" },
     "phase": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" },
-    "status": { "type": "string", "enum": ["done"] },
+    "status": {
+      "type": "string",
+      "enum": ["done", "in-progress"],
+      "description": "done: delivered. in-progress: checkpoint on the phase branch, written after every build and review step."
+    },
+    "round": { "type": "integer", "minimum": 1, "description": "in-progress only: the current round." },
+    "step": {
+      "type": "string",
+      "enum": ["build", "review"],
+      "description": "in-progress only: the last finished step of the round. build: the review of this round is next. review: evaluating the findings is next."
+    },
+    "findings": {
+      "type": "array",
+      "description": "in-progress only, after a review step: the open findings, so the next round can start without the reviewers.",
+      "items": {
+        "type": "object",
+        "required": ["by", "severity", "text"],
+        "additionalProperties": false,
+        "properties": {
+          "by": { "type": "string" },
+          "severity": { "type": "string", "enum": ["blocking", "important", "note"] },
+          "text": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "question": { "type": "string", "description": "in-progress only: a question waiting for the user, in one line." },
     "rounds": { "type": "integer", "minimum": 0 },
     "verdicts": {
       "type": "object",

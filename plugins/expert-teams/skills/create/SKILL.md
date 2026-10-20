@@ -57,6 +57,7 @@ Clarify in conversation, not as a questionnaire:
   - Target branch (`baseBranch`), default the current default branch.
   - Check command before every commit in code phases (`preCommit`), e.g. `npm run check`, or none.
   - Worktrees and parallelism (`worktrees`, `maxParallelAgents`), default `true` and 4.
+  - Checkpoints (`pushEveryRound`), default `true`: after every build and review step the state is committed and pushed to the phase branch, so a crashed run continues there. Only `false` if the project forbids unfinished commits.
   - Maximum number of review rounds (`maxRounds`), default 3.
   - Models: the default is Opus for building and reviewing. Sonnet or Haiku only if the user explicitly wants them, and then only for the phases named.
   - **Human in the loop** (`humanInTheLoop`): `autonomous` (the agents settle everything and record their assumptions), `as-needed` (default: only the cases in `askHumanWhen` go to the user) or `always` (every consult question and every stalemate goes to the user). For `as-needed` agree on the cases in `askHumanWhen`, e.g. contradictions with the inputs, scope changes, prices and money amounts. Mention that it can be overridden per phase and per run (`--autonomous`, `--as-needed`, `--always`).
