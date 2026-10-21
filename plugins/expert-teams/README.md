@@ -2,7 +2,7 @@
 
 **Describe your idea, and a team of expert agents builds it: in every phase builders create, reviewers challenge, until all of them accept.**
 
-`expert-teams` is a Claude Code plugin for any work that benefits from a second pair of eyes: software, marketing, research, documentation. It talks you through your project until a pipeline of phases and roles is clear, writes that pipeline as a commented YAML file, and then runs it with subagents: in parallel where phases do not depend on each other, in git worktrees, with a pull request per phase. Questions about money, scope or contradictions come to you; everything else the team settles itself and writes down.
+`expert-teams` is a Claude Code plugin for any work that benefits from a second pair of eyes: software, marketing, research, documentation, text-to-speech audio. It talks you through your project until a pipeline of phases and roles is clear, writes that pipeline as a commented YAML file, and then runs it with subagents: in parallel where phases do not depend on each other, in git worktrees, with a pull request per phase. Questions about money, scope or contradictions come to you; everything else the team settles itself and writes down.
 
 This is the example pipeline from [`examples/business-tool-mvp.yaml`](examples/business-tool-mvp.yaml) in the middle of a run, as `/expert-teams:status` draws it (B = builder):
 
@@ -173,6 +173,7 @@ The core of the plugin knows roles, phases, rounds, questions, branches and stat
 | [`marketing`](domains/marketing/SKILL.md) | Audience, positioning, campaigns, content, measurement. Writes drafts and plans, never publishes. | marketing-strategist, copywriter, marketing-analyst, brand-reviewer |
 | [`research`](domains/research/SKILL.md) | Market, competitor or option analyses for a decision; every claim has a source. | researcher, fact-checker |
 | [`docs`](domains/docs/SKILL.md) | Manuals, how-to guides, specifications, READMEs; the reviewer follows every step as the target reader. | technical-writer, reader-reviewer |
+| [`audio`](domains/audio/SKILL.md) | Text-to-speech with the [ElevenLabs](https://elevenlabs.io) API: narration for the ear, voice casting, generation, loudness and checks. The API is paid: text is accepted before generation, takes are cached, every paid call is estimated against your budget. The key comes from `ELEVENLABS_API_KEY` and is never committed. | narration-writer, voice-director, audio-engineer, audio-qa |
 
 Each pack is one `SKILL.md` with the same five sections: what grill me asks (`Grill me`), defaults for the base questions, team, typical flow, and lines for every build and review task. `/expert-teams:create` proposes the packs after the brainstorming, you confirm them, and the pipeline records them in `domains`; `/expert-teams:modify` and `/expert-teams:run` then load exactly those packs. A project can combine packs, e.g. `[marketing, software]` for a launch with its own landing page. A pipeline without `domains` uses `[software]`, and `validate.mjs` rejects a pack that does not exist.
 
