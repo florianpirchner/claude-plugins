@@ -17,3 +17,6 @@ packs:
   - name: docs
     description: Writing documentation such as user manuals, how-to guides, specifications, READMEs and API references, checked by reading it as the target reader.
     cues: [documentation, manual, user guide, handbook, how-to, README, API docs, onboarding, specification, wiki, help pages, tutorial]
+  - name: audio
+    description: Text-to-speech audio production with the ElevenLabs API, from narration script and voice casting to generation, post-processing and checks. Paid API; the key comes from ELEVENLABS_API_KEY and is never committed.
+    cues: [text to speech, TTS, audio, voice, voice-over, narration, narrator, speech, audiobook, podcast, audio guide, ElevenLabs, spoken, read aloud, prompts for a phone system]

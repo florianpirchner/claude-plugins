@@ -302,3 +302,11 @@ test("setup rejects an unknown pack in the draft", () => {
   writeFileSync(file, dump(draft));
   assert.equal(run(["setup", file, "--root", root]).ok, true);
 });
+
+test("audio pack keeps the API key out of the repository and names the cost", () => {
+  const skill = readFileSync(join(PLUGIN, "domains", "audio", "SKILL.md"), "utf8");
+  assert.ok(skill.includes("ELEVENLABS_API_KEY"));
+  assert.ok(skill.includes("never committed"));
+  assert.ok(skill.includes("costs money"));
+  assert.ok(readdirSync(join(PLUGIN, "domains", "audio", "agents")).includes("audio-engineer.md"));
+});

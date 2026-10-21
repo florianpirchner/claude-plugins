@@ -8,7 +8,7 @@
   "plugins": [
     {
       "name": "expert-teams",
-      "description": "Guided design, change and execution of builder/challenger pipelines with subagents, consult questions and a configurable human in the loop, for software, marketing, research and docs.",
+      "description": "Guided design, change and execution of builder/challenger pipelines with subagents, consult questions and a configurable human in the loop, for software, marketing, research, docs and text-to-speech audio.",
       "author": {
         "name": "Flo"
       },
