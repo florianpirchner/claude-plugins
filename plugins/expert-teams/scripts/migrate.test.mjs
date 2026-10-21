@@ -23,6 +23,7 @@ function oldProject({ done = ["requirements"] } = {}) {
   const pipeline = load(readFileSync(join(PLUGIN, "examples", `${NAME}.yaml`), "utf8"), { schema: JSON_SCHEMA });
   delete pipeline.rules.language;
   delete pipeline.rules.integrationBranch;
+  delete pipeline.domains;
   write(root, `.claude/pipelines/${NAME}.json`, pipeline);
   for (const id of done) write(root, `docs/pipeline-status/${NAME}/${id}.json`, { pipeline: NAME, phase: id, status: "done", rounds: 2 });
   write(root, `.claude/pipelines/.drafts/new-pipeline.json`, { kind: "create", stage: "team" });
@@ -70,9 +71,11 @@ test("--apply converts everything, the result validates, a second run has nothin
   assert.ok(yaml.startsWith("# Pipeline business-tool-mvp"));
   assert.ok(yaml.includes("  # Added by the migration: the language"));
   assert.ok(yaml.includes("  language:\n    code: de\n    docs: de\n    ui: de"));
+  assert.ok(yaml.includes("# Added by the migration: domain packs"));
+  assert.ok(yaml.indexOf("domains:\n  - software") < yaml.indexOf("\ninputs:"), "domains before inputs");
   assert.ok(readFileSync(join(root, `.claude/skills/${NAME}/SKILL.md`), "utf8").includes(`.claude/expert-teams/pipelines/${NAME}.yaml`));
 
-  const v = validate(["pipeline", NAME, "--root", root, "--agents-dir", join(PLUGIN, "examples", "agents")]);
+  const v = validate(["pipeline", NAME, "--root", root, "--agents-dir", join(PLUGIN, "domains", "software", "agents")]);
   assert.equal(v.ok, true, JSON.stringify(v.errors));
   assert.deepEqual(v.done, ["requirements"]);
   assert.equal(v.target, "main", "phases already on main keep going there");
@@ -100,4 +103,25 @@ test("conflicts and bad arguments are reported, not overwritten", () => {
   assert.equal(readFileSync(join(root, `.claude/expert-teams/pipelines/${NAME}.yaml`), "utf8"), "name: other\n");
   assert.equal(migrate(["--root", root, "--language", "german"]).usage, true);
   assert.equal(migrate(["--bogus"]).usage, true);
+});
+
+test("a YAML pipeline without domains gets domains: [software], keeping its comments", () => {
+  const root = mkdtempSync(join(tmpdir(), "expert-teams-migrate-"));
+  const original = readFileSync(join(PLUGIN, "examples", `${NAME}.yaml`), "utf8").replace(/# Domain packs[^\n]*\ndomains:\n  - software\n/, "");
+  assert.ok(!original.includes("domains:"));
+  write(root, `.claude/expert-teams/pipelines/${NAME}.yaml`, original);
+  const plan = migrate(["--root", root]);
+  assert.deepEqual(plan.steps.map((s) => `${s.op} ${s.from}`), [`edit .claude/expert-teams/pipelines/${NAME}.yaml`]);
+  assert.deepEqual(plan.decisions, []);
+
+  const r = migrate(["--root", root, "--apply"]);
+  assert.equal(r.ok, true, JSON.stringify(r.errors));
+  const yaml = readFileSync(join(root, `.claude/expert-teams/pipelines/${NAME}.yaml`), "utf8");
+  assert.ok(yaml.startsWith("# Example pipeline"), "header stays on top");
+  assert.ok(yaml.includes("# Added by the migration: domain packs"));
+  assert.equal(yaml.replace(/# Added by the migration: domain packs[^\n]*\ndomains:\n  - software\n/, ""), original, "nothing else changed");
+  const v = validate(["pipeline", NAME, "--root", root, "--agents-dir", join(PLUGIN, "domains", "software", "agents")]);
+  assert.equal(v.ok, true, JSON.stringify(v.errors));
+  assert.deepEqual(v.warnings, []);
+  assert.equal(migrate(["--root", root, "--apply"]).nothingToDo, true);
 });

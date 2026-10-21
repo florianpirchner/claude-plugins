@@ -1,6 +1,6 @@
 ---
 name: create
-description: Guides the user in conversation to a new builder/challenger pipeline. Stages brainstorming (free), grill me (technology, open points, base questions), team, flow and generate. Creates agent files, .claude/expert-teams/pipelines/<name>.yaml and a skill /<name> at the end. Survives restarts.
+description: Guides the user in conversation to a new builder/challenger pipeline for any field of work (software, marketing, research, docs, ...). Stages brainstorming (free), domain packs, grill me (pack questions, open points, base questions), team, flow and generate. Creates agent files, .claude/expert-teams/pipelines/<name>.yaml and a skill /<name> at the end. Survives restarts.
 argument-hint: "[<name>]"
 disable-model-invocation: true
 model: opus
@@ -8,7 +8,9 @@ model: opus
 
 # Design a pipeline together
 
-You guide the user through five stages: **brainstorming → grill me → team → flow → generate**. You are a conversation partner, not an executor: you propose, ask and record. The user decides when a stage is finished. You never move on to the next stage by yourself.
+You guide the user through five stages: **brainstorming → grill me → team → flow → generate**, with the choice of domain packs between brainstorming and grill me. You are a conversation partner, not an executor: you propose, ask and record. The user decides when a stage is finished. You never move on to the next stage by yourself.
+
+This skill knows nothing about any field of work. Everything specific (which questions to grill on, example roles, typical phases, what builders and reviewers must watch) comes from the **domain packs** in `<plugin>/domains/`: `index.yaml` lists them, `domains/<pack>/SKILL.md` holds each pack's knowledge in the sections `Grill me`, `Base questions`, `Team`, `Flow` and `Build and review`. Where this skill says "the packs", it means the packs in the draft's `domains.selected`, read in that order.
 
 **Plugin directory:** `${CLAUDE_PLUGIN_ROOT}`. If that literally reads `${CLAUDE_PLUGIN_ROOT}`, it is the directory two levels above this skill's directory. Below it is called `<plugin>`.
 
@@ -49,31 +51,41 @@ Open with a sentence like: "Tell me about your idea, in your own words and in an
 
 - No questionnaire, but guide lightly: after the user's first story, ask open follow-up questions, one at a time, about what is still missing: Who uses it? Which problem does it solve? What matters most? What must a first version do? What is explicitly out? Which documents or existing code are the basis?
 - Every few answers, mirror back a short summary in your own words so the user can correct it.
-- Do not ask about technology, delivery, language or other rules here; that comes in stage 2. If the user mentions such things, record them.
+- Do not ask about technology, tools, delivery, language or other rules here; that comes in stage 2. If the user mentions such things, record them.
 - Ask back right away where something is unclear or contradicts itself.
 - After every answer record `summary`, `openQuestions` and, if the user named any, `rules` in the draft. Mark in `summary` everything the user already said about technology, hosting and rules, so stage 2 only confirms it.
 
 When the user says they are done, show a short summary and ask for confirmation. Only after confirmation: `brainstorming.confirmed = true`, `stage = "grill-me"`.
 
+## Domain packs
+
+This step is mandatory and comes right after the brainstorming, before any grill me question.
+
+1. Read `<plugin>/domains/index.yaml`. Compare each pack's `description` and `cues` with `brainstorming.summary` and what you found in the project.
+2. Propose the packs that fit, each with one sentence why ("software, because the result is a web app with a database"). Several packs are normal: a product launch with a landing page may need `marketing` and `software`; a manual with a market comparison `docs` and `research`. Name the packs you considered and left out if it is close.
+3. If no pack fits, say so. The pipeline then works with the core rules only (no pack-specific questions, no example roles), and you tell the user that a new pack is a folder `<plugin>/domains/<name>/` with a `SKILL.md` and an entry in `index.yaml`.
+4. Record the proposal in the draft's `domains` (`selected`, `reasons`, `confirmed: false`). The user confirms it as the first point of stage 2.
+5. As soon as the packs are confirmed, Read every `<plugin>/domains/<pack>/SKILL.md` completely. On a restart, read them again before you continue in any stage after this one.
+
 ## Stage 2: Grill me
 
-Goal: technology settled, no open points and no contradictions left, project rules confirmed, before the team is planned. Three parts in this order. Anything the user already said in stage 1 is not asked again, only confirmed ("You said it runs on your Strato webspace, so ...").
+Goal: domain packs confirmed, the packs' questions answered, no open points and no contradictions left, project rules confirmed, before the team is planned. Start with the packs, then three parts in this order. Anything the user already said in stage 1 is not asked again, only confirmed ("You said it runs on your Strato webspace, so ...").
 
-### Part A: Technology
+**Packs first.** Show the proposed packs with their reasons and ask the user to confirm or change them. Record the answer in `domains`, set `domains.confirmed = true` and Read the packs' `SKILL.md` (see "Domain packs").
 
-Ask first: "Do you already have a fixed idea of the technology and where it runs, or should I advise you?"
+### Part A: Pack questions
 
-- **Fixed idea:** take over the stack and the operation the user names. Check it only for contradictions with the rest of stage 1 and the project (e.g. existing code, `CLAUDE.md`, a webspace that cannot run Node).
-- **Advice:** read `<plugin>/references/stack-guide.md` and walk the user through its questions, one or two at a time, from the hard limits towards the technology, never the other way round: where it runs, who maintains it and which language that person knows, how many users and how sensitive the data is, whether it needs offline use, a mobile app or real time. Then propose one stack with a short reason per part and the alternative you rejected. Never propose a stack the stated hosting cannot run.
+Work through the `Grill me` section of each pack, one pack after the other, in the order and manner the pack describes. Record the answers where the pack says (the software pack uses `grillMe.tech`, other packs `grillMe.packs.<pack>`). The files a pack asks you to write (e.g. `docs/input/tech-stack.md`, `docs/input/marketing-brief.md`) are written at the end of stage 2; if one already exists, show the differences and change it only with the user's consent. Add each to the pipeline's `inputs` and to `rules.readOnly`.
 
-When the user confirms, record it in `grillMe.tech` (`mode`: `given` or `advised`, `stack`, `hosting`, `reasons`). At the end of stage 2 write it to `docs/input/tech-stack.md` (in `rules.language.docs`): stack per layer, hosting and operation, the limits it follows from, rejected alternatives. If that file already exists, show the differences and change it only with the user's consent. Add it to the pipeline's `inputs` and to `rules.readOnly`.
+If no pack is selected, skip part A.
 
 ### Part B: Open points and contradictions
 
-1. **Analyse.** Read the draft (`brainstorming.summary`, `openQuestions`, `rules`, `grillMe.tech`) and compare it with what you found in the project at the start (`CLAUDE.md`, inputs such as `docs/input/`, existing agents and pipelines, code and build files). Look for:
+1. **Analyse.** Read the draft (`brainstorming.summary`, `openQuestions`, `rules`, `grillMe.tech`, `grillMe.packs`) and compare it with what you found in the project at the start (`CLAUDE.md`, inputs such as `docs/input/`, existing agents and pipelines, code and build files). Look for:
    - **Open points:** things a builder or reviewer would need to know but nobody said, e.g. what "finished" means, unclear scope edges, missing inputs.
    - **Contradictions:** statements that do not fit together, or that do not fit the inputs, the stack or `CLAUDE.md`.
    - **Risks and assumptions:** things that were only assumed, or that will likely go wrong.
+   - The extra points each pack's `Grill me` section names ("When looking for open points, also check ...").
 2. **Record** every finding in `grillMe.findings` with `kind` (`open`, `contradiction`, `risk`), a pointed `question` and `status: "open"`. Order them so the ones that change the most come first.
 3. **Grill.** Open with a sentence like: "I went through everything again and found N points. Let me grill you on them one by one." Then:
    - One finding at a time, at most three short questions at once. Be direct and specific: name the exact statement or file the question is about. Give your recommendation for each, so the user can simply confirm it.
@@ -82,36 +94,36 @@ When the user confirms, record it in `grillMe.tech` (`mode`: `given` or `advised
 
 ### Part C: Base questions
 
-Settle the project rules (for `rules`, see `<plugin>/schemas/pipeline.schema.json`) as one compact list with your proposed value for each, taken from the defaults below, `CLAUDE.md`, what the user said and what you found in the project. Ask the user to confirm the list or name what differs. This is the one place where more than three points are asked at once.
+Settle the project rules (for `rules`, see `<plugin>/schemas/pipeline.schema.json`) as one compact list with your proposed value for each, taken from the defaults below, the packs' `Base questions` sections, `CLAUDE.md`, what the user said and what you found in the project. Where a pack says what a rule covers or proposes a value, use that. Ask the user to confirm the list or name what differs. This is the one place where more than three points are asked at once.
 
-1. **Language** (`language`): code `en` (identifiers, database tables and columns, API paths and fields, code comments, log messages, test names, commit messages and branch names), documentation `en` (specifications, architecture, decision logs, READMEs), user interface texts `en` unless the inputs ask for another language. The code is English even if the user speaks another language; change it only if the user explicitly asks.
+1. **Language** (`language`): `code` for names in files the agents produce that are not prose (identifiers, file and branch names, commit messages), `docs` for documents (specifications, plans, decision logs, READMEs), `ui` for texts the final audience sees (user interface, published copy). Default `en` for each, unless the inputs ask for another language or the user explicitly wants one; `code` stays `en` even if the user speaks another language. Each pack says what the three cover in its field.
 2. **Delivery** (`delivery`): one pull request per phase merged right away (`pr-merge`), pull request left open (`pr-open`) or merged directly locally (`commit`). If `CLAUDE.md` says something about it, propose that.
 3. **Target branch** (`baseBranch`): default the current default branch.
    **Integration branch** (`integrationBranch`): default `expert-teams/<name>`. The run creates it from the target branch, all phase pull requests are merged into it, and at the end one final pull request brings it into the target branch, which the user merges. `none` merges every phase straight into the target branch.
-4. **Check before every commit** in code phases (`preCommit`), e.g. `npm run check`, or none. Propose the check command that fits the stack from part A.
+4. **Check before every commit** (`preCommit`): a command that runs before every commit in phases with `code: true`, or none. Propose what the packs suggest; without one, none.
 5. **Worktrees and parallelism** (`worktrees`, `maxParallelAgents`): default `true` and 4.
 6. **Checkpoints** (`pushEveryRound`): default `true`, every build and review step is committed and pushed to the phase branch so a crashed run continues there. Only `false` if the project forbids unfinished commits.
 7. **Review rounds** (`maxRounds`): default 3.
 8. **Models:** Opus for building and reviewing. Sonnet or Haiku only if the user explicitly wants them, and then only for the phases named.
-9. **Human in the loop** (`humanInTheLoop`): `as-needed` (default: only the cases in `askHumanWhen` go to the user, e.g. contradictions with the inputs, scope changes, prices and money amounts), `autonomous` (the agents settle everything and record their assumptions) or `always` (every consult question and every stalemate goes to the user). It can be overridden per phase and per run (`--autonomous`, `--as-needed`, `--always`).
+9. **Human in the loop** (`humanInTheLoop`): `as-needed` (default: only the cases in `askHumanWhen` go to the user, e.g. contradictions with the inputs, scope changes, prices and money amounts, plus what the packs add), `autonomous` (the agents settle everything and record their assumptions) or `always` (every consult question and every stalemate goes to the user). It can be overridden per phase and per run (`--autonomous`, `--as-needed`, `--always`).
 10. **Consult questions** (`consult`): a role may pause on a side question, the orchestrator gets the answer from another role or the user, and the role continues with its full context. Default on, at most 3 times per role and round.
 
 Record the answers in `brainstorming.rules`.
 
 ### End of stage 2
 
-When the technology is confirmed, no finding is `open` and the base questions are confirmed, write `docs/input/tech-stack.md` (part A) and show a short list of what was settled and what was deferred. Ask whether to move on. Only after confirmation: `grillMe.confirmed = true`, `stage = "team"`.
+When the packs and their questions are confirmed, no finding is `open` and the base questions are confirmed, write the files the packs ask for (part A) and show a short list of what was settled and what was deferred. Ask whether to move on. Only after confirmation: `grillMe.confirmed = true`, `stage = "team"`.
 
 ## Stage 3: Team
 
 Goal: settle the roles.
 
 1. Check which agents already exist: `.claude/agents/*.md` in the project and `~/.claude/agents/*.md`. Read their header (`name`, `description`).
-2. The example roles in `<plugin>/examples/agents/` (a business tool with 13 roles) serve as inspiration. Do not copy them blindly.
+2. The example roles of the packs (each pack's `Team` section names its `agents/` folder) serve as inspiration. Do not copy them blindly. Follow the packs' `Team` guidelines, e.g. which tools a role needs.
 3. Propose a team as a table: role, what for, builds or reviews what, source (`existing`, `new`, `example`). Guidelines:
    - Every phase later needs at least one builder and at least one reviewer. The reviewer is a different role than the builder.
    - As few roles as possible, as many as necessary. One role per real domain perspective.
-   - Roles stay technology-neutral unless a role must explicitly be bound to a technology. The technology goes into the phase's `task` later. A role like "senior-ui-dev" then works for React and for Vue.
+   - Roles describe a perspective, not a tool or a single project: the specifics go into the phase's `task` later, so a role stays reusable.
    - Reuse existing agents if they fit. Do not change them without consent.
    - Agent names are lowercase English words with hyphens. Pipeline names and phase ids too: they become branch names.
 4. Discuss until the user is happy. Record every change in `team.roles`.
@@ -121,12 +133,12 @@ Goal: settle the roles.
 
 Goal: settle phases, pairs and order.
 
-1. Propose the phases as a table: phase, goal, depends on, builders, reviewers, result files, and where it helps, who builders consult (`consultWith`). Then show the flow as a simple sequence or waves, e.g. "Wave 1: requirements. Wave 2: views, data-model (parallel)".
+1. Read the `Flow` sections of the packs again for the typical order, work package types and what good acceptance criteria look like in that field. Propose the phases as a table: phase, goal, depends on, builders, reviewers, result files, and where it helps, who builders consult (`consultWith`). Then show the flow as a simple sequence or waves, e.g. "Wave 1: requirements. Wave 2: views, data-model (parallel)".
 2. Guidelines:
    - Every phase has a clear result (files in `outputs`) and checkable `acceptance` criteria. Name output files after their content (`acceptance.md`, `test-concept.md`), not `report.md`, `summary.md` or `findings.md`: Claude Code may block subagents from writing files named like reports.
    - Phases without mutual dependencies run in parallel.
-   - Code phases get `code: true`.
-   - Many similar implementation tasks go into one phase with `workPackages`. An earlier phase then produces the package list (`from`), e.g. the architecture.
+   - Phases in which `rules.preCommit` must run before every commit get `code: true`.
+   - Many similar tasks go into one phase with `workPackages`. An earlier phase then produces the package list (`from`), e.g. the architecture or a content plan. Package types are free names; every type used needs a builder and reviewers.
    - Reviewers get concrete review tasks, not "check everything".
    - `consultWith` names roles with the expertise the builder is likely to lack. Without it the orchestrator picks a fitting role.
    - A phase gets its own `humanInTheLoop` only if it really should differ from the pipeline's, e.g. `always` for a phase that sets prices.
@@ -136,8 +148,8 @@ Goal: settle phases, pairs and order.
 ## Stage 5: Generate
 
 1. **Name.** If `name` is not settled yet, propose one from the goal (e.g. `optimize-performance`) and ask for confirmation. Check it with `node <plugin>/scripts/validate.mjs new-name <name>` and ask for another one on errors. Record it in the draft.
-2. **Agents.** For every role with source `new` or `example`, create the file `.claude/agents/<agent>.md` from the template `<plugin>/templates/agent.md`. Every file is self-contained and mentions no other agents. `model: opus`, unless the user explicitly set something else for the role. If the file already exists, do not overwrite it, ask.
-3. **Pipeline.** Write `.claude/expert-teams/pipelines/<name>.yaml` with `schemaVersion: 1`, `name`, `description`, `inputs`, `rules` from stages 1 and 2 and `phases` from the flow. `inputs` contains `docs/input/tech-stack.md` from stage 2. Add a short `#` comment wherever a choice is not obvious, e.g. why a phase has its own `humanInTheLoop` or why a rule exists. Validate it:
+2. **Agents.** For every role with source `new` or `example`, create the file `.claude/agents/<agent>.md` from the template `<plugin>/templates/agent.md` (for an example role, start from the pack's file). Every file is self-contained and mentions no other agents. `model: opus`, unless the user explicitly set something else for the role. If the file already exists, do not overwrite it, ask.
+3. **Pipeline.** Write `.claude/expert-teams/pipelines/<name>.yaml` with `schemaVersion: 1`, `name`, `description`, `domains` (the confirmed packs; `[]` if none), `inputs`, `rules` from stages 1 and 2 and `phases` from the flow. `inputs` contains the files the packs had you write in stage 2. Put the build and review lines from the packs' `Build and review` sections into the phases' tasks only where a phase needs more than these lines; `/expert-teams:run` adds them to every task by itself. Add a short `#` comment wherever a choice is not obvious, e.g. why a phase has its own `humanInTheLoop` or why a rule exists. Validate it:
    ```
    node <plugin>/scripts/validate.mjs pipeline <name>
    ```
@@ -150,6 +162,6 @@ Goal: settle phases, pairs and order.
 
 ## Restart and cancel
 
-- If the conversation is interrupted, nothing is lost as long as the draft is written. The next `/expert-teams:create` continues there.
+- If the conversation is interrupted, nothing is lost as long as the draft is written. The next `/expert-teams:create` continues there and first reads the packs in `domains.selected` again.
 - If the user wants to go back to an earlier stage, set `stage` back and the `confirmed` fields from that stage on to `false`.
 - If the user wants to cancel, ask whether the draft should be deleted. Delete it only on an explicit yes.

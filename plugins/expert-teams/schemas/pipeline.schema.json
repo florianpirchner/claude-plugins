@@ -11,6 +11,12 @@
     "schemaVersion": { "type": "integer", "enum": [1] },
     "name": { "$ref": "#/$defs/slug", "description": "Must match the file name without .json." },
     "description": { "type": "string", "minLength": 1 },
+    "domains": {
+      "description": "Domain packs from <plugin>/domains/index.yaml whose knowledge create, modify and run load, e.g. [software] or [software, marketing]. Missing means [software], the only field of earlier versions.",
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/slug" }
+    },
     "inputs": {
       "description": "Files or folders every phase may read.",
       "$ref": "#/$defs/paths"
@@ -79,7 +85,7 @@
         },
         "preCommit": {
           "type": ["string", "null"],
-          "description": "Command that must succeed before every commit in code phases, e.g. npm run check. null if there is none."
+          "description": "Command that must succeed before every commit in phases with code: true, e.g. npm run check, a spell or link check. null if there is none. The domain packs propose one."
         },
         "pushEveryRound": {
           "type": "boolean",
@@ -101,17 +107,17 @@
             "code": {
               "type": "string",
               "pattern": "^[a-z]{2}$",
-              "description": "Source code: identifiers, database tables and columns, API paths and fields, code comments, log messages, test names, commit messages and branch names."
+              "description": "Code and everything around it: identifiers, database tables and columns, API paths and fields, code comments, log messages, test names, commit messages and branch names."
             },
             "docs": {
               "type": "string",
               "pattern": "^[a-z]{2}$",
-              "description": "Documents: specifications, architecture, decision logs, READMEs."
+              "description": "Documents: specifications, plans, briefs, decision logs, READMEs."
             },
             "ui": {
               "type": "string",
               "pattern": "^[a-z]{2}$",
-              "description": "Texts the end users see in the product."
+              "description": "Texts the audience sees: the user interface of a product, or published copy such as posts, emails and ads."
             }
           }
         },
@@ -167,7 +173,7 @@
         "from": {
           "type": "string",
           "minLength": 1,
-          "description": "YAML file with the work packages, produced by an earlier phase. Each package has id, type, dependsOn and the files it may change."
+          "description": "YAML file with the work packages, produced by an earlier phase. Each package has id, type, dependsOn and the files it may change. Types are free names (e.g. backend, post); builderByType and reviewersByType need an entry for each type used."
         },
         "builderByType": {
           "type": "object",
@@ -200,7 +206,7 @@
         "inputs": { "$ref": "#/$defs/paths" },
         "code": {
           "type": "boolean",
-          "description": "true marks a code phase: rules.preCommit runs before every commit."
+          "description": "true marks a phase whose results rules.preCommit checks (code, or e.g. a site build): the check runs before every commit."
         },
         "models": { "$ref": "#/$defs/models" },
         "humanInTheLoop": {

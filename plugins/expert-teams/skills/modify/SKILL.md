@@ -14,7 +14,9 @@ You guide the user through the same five stages as `/expert-teams:create`: **bra
 
 **Project directory:** the root of the git repository (`git rev-parse --show-toplevel`), otherwise the current directory. All paths are relative to it.
 
-Speak the user's language. Ask at most three questions at once and make a proposal for each that the user can simply confirm. The guidelines for roles and phases in `<plugin>/skills/create/SKILL.md` (stages 2 to 4) apply here too; read them.
+Speak the user's language. Ask at most three questions at once and make a proposal for each that the user can simply confirm. The guidelines for domain packs, roles and phases in `<plugin>/skills/create/SKILL.md` (domain packs and stages 2 to 4) apply here too; read them.
+
+**Domain packs.** Field-specific knowledge comes from the packs the pipeline lists in `domains` (see `<plugin>/domains/index.yaml`). Read every `<plugin>/domains/<pack>/SKILL.md` of the pipeline at the start and again after a restart. A pipeline without `domains` uses `[software]`; propose to write that down in stage 5.
 
 ## The draft: your memory
 
@@ -37,9 +39,9 @@ Argument: `$ARGUMENTS`
    - If the argument is not exactly one of them, say so, show the list and stop.
    - Renaming a pipeline is not a change: suggest `/expert-teams:create` with the new name and stop.
 2. If `.claude/expert-teams/drafts/modify-<name>.yaml` exists with `stage` other than `done`, summarize in three to five sentences where you stand and continue in its `stage`. If the pipeline file changed since `updatedAt` (`git log -1 --format=%cI -- .claude/expert-teams/pipelines/<name>.yaml`), say so and compare the draft with the current file before you continue.
-3. Otherwise create the draft: `kind: "modify"`, `name: <name>`, `stage: "brainstorming"`, `changes: []`, `brainstorming.rules` = the current `rules`, `team.roles` = every agent the pipeline uses with `source: "existing"` and its `description` as `purpose`, `flow.phases` = the current `phases`.
+3. Otherwise create the draft: `kind: "modify"`, `name: <name>`, `stage: "brainstorming"`, `changes: []`, `domains.selected` = the pipeline's `domains` (from the validate output) with `confirmed: true`, `brainstorming.rules` = the current `rules`, `team.roles` = every agent the pipeline uses with `source: "existing"` and its `description` as `purpose`, `flow.phases` = the current `phases`.
 4. Get the state:
-   - `node <plugin>/scripts/validate.mjs pipeline <name>`. Show `errors` and `warnings`; fixing them can be part of the change. Remember `done`.
+   - `node <plugin>/scripts/validate.mjs pipeline <name>`. Show `errors` and `warnings`; fixing them can be part of the change. Remember `done` and `domains`, and read those packs.
    - A run is in progress if `.claude/worktrees/<name>-*` exists or branches `pipeline/<name>/*` exist (`git branch --list 'pipeline/<name>/*'`). Then tell the user that running phases keep their old task until they are restarted, and recommend finishing or cancelling the run first.
 5. Show the current pipeline briefly: goal, roles, phases as a table (phase, depends on, builders, reviewers, status) and the main rules.
 
@@ -49,14 +51,15 @@ Goal: understand what should change and why.
 
 Open with a sentence like: "What should change in the pipeline, and why? Tell me when we have it. Then I look for open points and contradictions and grill you on them."
 
-Clarify: the reason for the change, what should be different at the end, what must stay as it is, and whether rules change (`language`, delivery, `preCommit`, worktrees, `pushEveryRound`, `maxRounds`, models, `humanInTheLoop`, `askHumanWhen`, `consult`, `notes`). Models stay Opus unless the user explicitly wants something else.
+Clarify: the reason for the change, what should be different at the end, what must stay as it is, whether the change brings in a new field of work (then propose the fitting pack from the index, e.g. `marketing` for a launch campaign, with a reason, and set `domains.confirmed = false` until stage 2), and whether rules change (`language`, delivery, `preCommit`, worktrees, `pushEveryRound`, `maxRounds`, models, `humanInTheLoop`, `askHumanWhen`, `consult`, `notes`). Models stay Opus unless the user explicitly wants something else.
 
 Record `summary`, `openQuestions`, `rules` and `changes` in the draft. Only after the user confirms: `brainstorming.confirmed = true`, `stage = "grill-me"`.
 
 ## Stage 2: Grill me
 
-Same three parts as stage 2 of `/expert-teams:create`, limited to what the change touches:
-- **Technology:** only if the change touches the stack or the hosting. Then read `docs/input/tech-stack.md`, ask "fixed idea or advice?" as in create, and update the file with the user's consent.
+Same parts as stage 2 of `/expert-teams:create`, limited to what the change touches:
+- **Packs:** if `domains` changes, confirm the new list first and read the added packs.
+- **Pack questions:** for an added pack, its whole `Grill me` section. For a pack the pipeline already has, only the questions the change touches (e.g. in the software pack only if the stack or the hosting changes). Read the file the pack wrote before (e.g. `docs/input/tech-stack.md`) and update it only with the user's consent.
 - **Open points and contradictions:** analyse the draft against the current pipeline, its status files, `CLAUDE.md` and the inputs, record them in `grillMe.findings` and grill until none is `open`. Look especially for changes that contradict done phases, other pipelines that use the same agents, and rules that no longer fit.
 - **Base questions:** show the current `rules` as the confirm list, with the changed values marked. If the pipeline has no `language` yet, propose `code: en, docs: en, ui: en`. If it has no `integrationBranch`, show the default `expert-teams/<name>`; if phases of this pipeline are already merged into the target branch, say that the next run continues on the integration branch, created from the current target branch, so nothing is lost.
 
@@ -83,7 +86,7 @@ Only after confirmation: `grillMe.confirmed = true`, `stage = "team"`.
 
 1. **Show the differences** before you write anything: the list `changes`, the status files to delete or rename, the agent files to create or change. Write only after the user confirms.
 2. **Agents.** Create new roles as `.claude/agents/<agent>.md` from `<plugin>/templates/agent.md`, `model: opus` unless the user set something else. Apply agreed changes to existing agent files. Removed roles: delete the agent file only if no other pipeline in `.claude/expert-teams/pipelines/` uses it and the user explicitly says yes; otherwise keep it.
-3. **Pipeline.** Write `.claude/expert-teams/pipelines/<name>.yaml` with the new `description`, `inputs`, `rules` and `phases`, keeping `schemaVersion` and `name` and the existing comments that still apply. Add a short `#` comment wherever a choice is not obvious, e.g. why a phase has its own `humanInTheLoop` or why a rule exists. Delete or rename the agreed status files. Validate:
+3. **Pipeline.** Write `.claude/expert-teams/pipelines/<name>.yaml` with the new `description`, `domains`, `inputs`, `rules` and `phases`, keeping `schemaVersion` and `name` and the existing comments that still apply. Add a short `#` comment wherever a choice is not obvious, e.g. why a phase has its own `humanInTheLoop` or why a rule exists. Delete or rename the agreed status files. Validate:
    ```
    node <plugin>/scripts/validate.mjs pipeline <name>
    ```
@@ -93,6 +96,6 @@ Only after confirmation: `grillMe.confirmed = true`, `stage = "team"`.
 
 ## Restart and cancel
 
-- If the conversation is interrupted, nothing is lost as long as the draft is written. The next `/expert-teams:modify <name>` continues there.
+- If the conversation is interrupted, nothing is lost as long as the draft is written. The next `/expert-teams:modify <name>` continues there and first reads the packs in `domains.selected` again.
 - Until stage 5 writes, the pipeline itself stays untouched. If the user wants to go back to an earlier stage, set `stage` back and the `confirmed` fields from that stage on to `false`.
 - If the user wants to cancel, ask whether the draft should be deleted. Delete it only on an explicit yes.

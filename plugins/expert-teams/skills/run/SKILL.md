@@ -7,7 +7,7 @@ model: opus
 
 # Pipeline runner
 
-You are the orchestrator. You do not write domain content or product code yourself; the agents do. You start them, give them their tasks, collect their results, settle their consult questions, decide stalemates and deliver. You only turn to the user where the human-in-the-loop level (section 5) says so.
+You are the orchestrator. You do not write the phases' content yourself (documents, code, copy); the agents do. You start them, give them their tasks, collect their results, settle their consult questions, decide stalemates and deliver. You only turn to the user where the human-in-the-loop level (section 5) says so.
 
 **Plugin directory:** `${CLAUDE_PLUGIN_ROOT}`. If that literally reads `${CLAUDE_PLUGIN_ROOT}`, it is the directory two levels above this skill's directory. Below it is called `<plugin>`. The validation script is `<plugin>/scripts/validate.mjs`.
 
@@ -43,6 +43,8 @@ Below, `<name>` is the checked name and `P` is the file `.claude/expert-teams/pi
 
    **Integration branch.** If `<target>` is not `<base>`: check it out (`git checkout <target>`; if it does not exist locally or on the remote, create it with `git checkout -b <target> origin/<base>`, or from `<base>` without a remote, and push it with `git push -u origin <target>`). Then bring in what happened on `<base>` meanwhile: `git merge origin/<base>` (or `<base>`) and push. On a conflict resolve it if it is clearly mechanical (generated files: regenerate them), otherwise stop and report the conflicting files. Then validate again so `done` is read from `<target>`.
 3. Read the project's `CLAUDE.md` if there is one. Its rules apply in addition to `rules`.
+
+   **Domain packs.** `domains` in the validation output lists the pipeline's packs (`[software]` if the file has none). Read the section `Build and review` of every `<plugin>/domains/<pack>/SKILL.md` in that list, exactly those packs and no others. Below, `<pack lines>` are the lines these sections say to add to every build and review task, and `<pack review lines>` the lines they add to review tasks only, with `<code>`, `<docs>` and `<ui>` filled in.
 4. A phase is `done` if it is listed in `done` of the validation output, i.e. `docs/pipeline-status/<name>/<phase-id>.yaml` exists on `<target>` with `status: done`. Everything else is open.
 5. An open phase is **startable** if every phase in its `dependsOn` is `done`.
 6. **Pick up interrupted work.** If a remote exists, run `git fetch origin --prune`, then:
@@ -102,9 +104,10 @@ To create: <outputs>. Write these files yourself; they are the requested deliver
 Acceptance criteria of the phase: <acceptance>
 
 Rules: Do not change anything under <rules.readOnly>. Write open questions at the end of your document.
-Languages: code in <code>: identifiers, database tables and columns, API paths and fields, code comments, log messages, test names and commit messages. Documents in <docs>. Texts the end users see in <ui>. Translate terms from the inputs instead of copying them, e.g. a German "Stundensatz" becomes "hourly_rate".
+Languages: names that are not prose (identifiers, file and branch names, commit messages) in <code>. Documents in <docs>. Texts the final audience sees in <ui>. Translate terms from the inputs instead of copying them.
+<pack lines>
 <every line of rules.notes>
-[code phase and rules.preCommit set:] Run <rules.preCommit> before every commit. Commit only when it succeeds. Do not disable or skip the check.
+[phase with `code: true` and rules.preCommit set:] Run <rules.preCommit> before every commit. Commit only when it succeeds. Do not disable or skip the check.
 <consult block, see section 5>
 [from round 2:] Findings of the last review: <all findings>. Fix all blocking and important findings. Briefly explain which ones you do not adopt.
 ```
@@ -121,7 +124,9 @@ Focus: <focus>
 To review: <outputs of the phase>
 Background (read): <inputs of the pipeline and the phase>
 Acceptance criteria of the phase: <acceptance>
-Languages: code in <code>: identifiers, database tables and columns, API paths and fields, code comments, log messages, test names and commit messages. Documents in <docs>. Texts the end users see in <ui>. Translate terms from the inputs instead of copying them, e.g. a German "Stundensatz" becomes "hourly_rate". Text in the wrong language is a blocking finding.
+Languages: names that are not prose (identifiers, file and branch names, commit messages) in <code>. Documents in <docs>. Texts the final audience sees in <ui>. Text in the wrong language is a blocking finding.
+<pack lines>
+<pack review lines>
 <every line of rules.notes>
 <consult block, see section 5>
 
@@ -228,7 +233,7 @@ When a phase or package is accepted:
    node <plugin>/scripts/visualize.mjs <name> --root <wd> --working-tree --run <project-dir>/.claude/expert-teams/runs/<name>.yaml
    ```
    It writes `docs/pipeline-status/<name>/README.md` (Mermaid chart, shown by GitHub) and `pipeline.html`; both go into the same commit. They are generated: on a merge conflict in them, run the command again instead of resolving by hand.
-3. Commit in `<wd>` (in code phases only after a successful `rules.preCommit`). Then, depending on `rules.delivery`:
+3. Commit in `<wd>` (in phases with `code: true` only after a successful `rules.preCommit`). Then, depending on `rules.delivery`:
    - `pr-merge`: push the branch, create a pull request into `<target>` and merge it right away.
      ```
      gh pr create --base <target> --head pipeline/<name>/<id> --title "<name>/<id>: <goal>" --body "<summary, verdicts, consult questions, decisions>"

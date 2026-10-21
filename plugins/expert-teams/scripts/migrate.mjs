@@ -14,12 +14,14 @@
 // Phase ids, branch names and file contents stay as they are. Two rules are added if missing, because their
 // defaults would change a running project: rules.language (--language, the language the project is written in)
 // and, if phases are already done on baseBranch, rules.integrationBranch: none (keeps merging into baseBranch).
+// Every pipeline without domains (JSON or YAML, expert-teams up to 0.12.0) gets domains: [software], the only
+// field of work those versions knew.
 // Running it again after --apply finds nothing to do. Output is JSON; exit code 0 = fine, 1 = errors, 2 = usage.
 
 import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, rmdirSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { checkAgainst } from "./validate.mjs";
+import { DEFAULT_DOMAINS, checkAgainst, readYaml } from "./validate.mjs";
 import { JSON_SCHEMA, dump } from "./vendor/js-yaml.mjs";
 
 const SLUG = /^[a-z0-9]+(-[a-z0-9]+)*$/;
@@ -47,6 +49,42 @@ function files(dir, ext) {
 // Inserts a comment line above the first line "  <key>:" inside the rules block.
 function commentRule(yaml, key, comment) {
   return yaml.replace(new RegExp(`^(rules:\\n(?:  .*\\n)*?)(  ${key}:)`, "m"), `$1  # ${comment}\n$2`);
+}
+
+const DOMAINS_COMMENT = "# Added by the migration: domain packs whose knowledge create, modify and run load. Older versions only knew software.";
+
+// Puts domains right after description, where /expert-teams:create writes it.
+function withDomains(pipeline) {
+  const out = {};
+  for (const [k, v] of Object.entries(pipeline)) {
+    if (k === "inputs" || k === "rules" || k === "phases") out.domains ??= [...DEFAULT_DOMAINS];
+    out[k] = v;
+  }
+  out.domains ??= [...DEFAULT_DOMAINS];
+  return out;
+}
+
+// Inserts domains above the first top-level inputs, rules or phases line, keeping every comment of the file.
+function addDomainsToYaml(yaml) {
+  const block = `${DOMAINS_COMMENT}\ndomains:\n${DEFAULT_DOMAINS.map((d) => `  - ${d}`).join("\n")}\n`;
+  const lines = yaml.split("\n");
+  const key = lines.findIndex((l) => /^(inputs|rules|phases):/.test(l));
+  if (key === -1) return yaml.replace(/\n*$/, "\n") + block;
+  // Comment lines right above the key belong to it, so the block goes above them; at the top they are the file header.
+  let at = key;
+  while (at > 0 && lines[at - 1].startsWith("#")) at--;
+  if (at === 0) at = key;
+  return [...lines.slice(0, at), block.slice(0, -1), ...lines.slice(at)].join("\n");
+}
+
+function planYamlPipeline(root, name, plan) {
+  const file = join(root, ".claude", "expert-teams", "pipelines", `${name}.yaml`);
+  const errors = [];
+  const pipeline = readYaml(file, errors);
+  if (pipeline === undefined) return plan.errors.push(...errors);
+  if (pipeline === null || typeof pipeline !== "object" || "domains" in pipeline) return;
+  const rel = relative(root, file).split("\\").join("/");
+  plan.steps.push({ op: "edit", from: rel, to: rel, content: addDomainsToYaml(readFileSync(file, "utf8")), added: ["domains"] });
 }
 
 function planPipeline(root, name, opts, plan) {
@@ -79,13 +117,16 @@ function planPipeline(root, name, opts, plan) {
     added.push(["integrationBranch", `Added by the migration: phases are already merged into ${rules.baseBranch ?? "baseBranch"}, so the run keeps doing that.`]);
   }
   pipeline.schemaVersion ??= 1;
-  const schemaErrors = checkAgainst("pipeline.schema.json", pipeline, name);
+  const migrated = pipeline.domains ? pipeline : withDomains(pipeline);
+  const schemaErrors = checkAgainst("pipeline.schema.json", migrated, name);
   // A missing language is a decision still to make, not an error of the old file.
   plan.errors.push(...schemaErrors);
 
-  let yaml = toYaml(pipeline, [`Pipeline ${name} of the expert-teams plugin. Schema: schemas/pipeline.schema.json`, `Migrated from .claude/pipelines/${name}.json.`]);
+  let yaml = toYaml(migrated, [`Pipeline ${name} of the expert-teams plugin. Schema: schemas/pipeline.schema.json`, `Migrated from .claude/pipelines/${name}.json.`]);
+  if (!pipeline.domains) yaml = yaml.replace(/^domains:/m, `${DOMAINS_COMMENT}\ndomains:`);
   for (const [key, comment] of added) yaml = commentRule(yaml, key, comment);
-  plan.steps.push({ op: "convert", from: rel(src), to: rel(dst), content: yaml, added: added.map(([k]) => k) });
+  const addedKeys = [...(pipeline.domains ? [] : ["domains"]), ...added.map(([k]) => k)];
+  plan.steps.push({ op: "convert", from: rel(src), to: rel(dst), content: yaml, added: addedKeys });
 
   for (const f of files(statusDir, ".json")) {
     const data = readJson(join(statusDir, f), plan.errors);
@@ -125,6 +166,10 @@ export function makePlan(root, opts = {}) {
     const name = f.slice(0, -5);
     if (!SLUG.test(name)) plan.errors.push(`.claude/pipelines/${f}: "${name}" is not a valid pipeline name`);
     else planPipeline(root, name, opts, plan);
+  }
+  for (const f of files(join(root, ".claude", "expert-teams", "pipelines"), ".yaml")) {
+    const name = f.slice(0, -5);
+    if (SLUG.test(name)) planYamlPipeline(root, name, plan);
   }
   for (const d of [".drafts", ".entwuerfe"]) {
     const dir = join(oldDir, d);

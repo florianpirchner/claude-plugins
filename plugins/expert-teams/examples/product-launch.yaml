@@ -1,0 +1,144 @@
+# Example pipeline of the expert-teams plugin without any code: the marketing launch of a small
+# time-tracking tool for agencies. Uses the marketing domain pack; roles in domains/marketing/agents/.
+# Schema: schemas/pipeline.schema.json
+schemaVersion: 1
+name: product-launch
+description: 'Example: launch campaign for a time-tracking tool for small agencies, from audience research to ready-to-approve content.'
+domains:
+  - marketing
+inputs:
+  - docs/input/product.md
+  - docs/input/marketing-brief.md
+rules:
+  # Plans in English, published copy in German for the German market.
+  language:
+    docs: en
+    ui: de
+  maxRounds: 3
+  models:
+    build: opus
+    review: opus
+  # Each phase is reviewed as a pull request; the final pull request from the integration branch is approved by a human.
+  delivery: pr-merge
+  baseBranch: main
+  # No check command: the pipeline produces documents only.
+  preCommit: null
+  pushEveryRound: true
+  worktrees: true
+  readOnly:
+    - docs/input/
+  humanInTheLoop: as-needed
+  askHumanWhen:
+    - Budget, prices and discounts
+    - Claims about named competitors
+    - Numbers, quotes or customer names that are not in docs/input/
+    - A change of the goal or the audience
+  consult:
+    enabled: true
+    maxPerRound: 3
+phases:
+  - id: research
+    goal: Describe the audience, its problems and the alternatives it uses today.
+    dependsOn: []
+    participants:
+      - agent: marketing-strategist
+        mode: build
+        task: Describe the primary audience (agencies with 3 to 20 people), their jobs, triggers and objections, and the alternatives they use today, from the inputs only.
+        outputs:
+          - docs/marketing/audience.md
+      - agent: marketing-analyst
+        mode: review
+        task: Check that every number has a source in the inputs or is marked as an estimate.
+    acceptance:
+      - One primary audience with problems, triggers and objections.
+      - At least three alternatives, including spreadsheets and doing nothing.
+  - id: positioning
+    goal: Settle the positioning and the core messages.
+    dependsOn:
+      - research
+    # New brand voice: every open question goes to the user in this phase.
+    humanInTheLoop: always
+    participants:
+      - agent: marketing-strategist
+        mode: build
+        task: Write the positioning statement, the value proposition and three core messages with proof points from the inputs.
+        outputs:
+          - docs/marketing/positioning.md
+      - agent: copywriter
+        mode: build
+        task: Write the voice guide (words to use and avoid, good and bad example sentences) from the brief, and check that the messages can be turned into copy the audience understands at first read.
+        outputs:
+          - docs/marketing/voice-guide.md
+      - agent: brand-reviewer
+        mode: review
+        task: Check every proof point against the inputs and the voice guide against the brief.
+    acceptance:
+      - Every core message has a proof point from the inputs.
+      - The voice guide has at least five example sentences.
+  - id: campaign-plan
+    goal: Plan the launch campaign over six weeks with channels, timing and content pieces.
+    dependsOn:
+      - positioning
+    participants:
+      - agent: marketing-strategist
+        mode: build
+        task: Plan the campaign week by week and list every content piece as a work package (id, type, channel, message, call to action, dependsOn, file).
+        outputs:
+          - docs/marketing/campaign-plan.md
+          - docs/marketing/content-packages.yaml
+      - agent: marketing-analyst
+        mode: review
+        task: Check that the plan fits the budget and the time in the brief and that every week moves the goal.
+    acceptance:
+      - Every content piece has a type, channel, message, call to action and target file.
+      - The plan stays within the budget of the brief.
+  - id: content
+    goal: Write every content piece of the campaign plan as a draft ready for approval.
+    dependsOn:
+      - campaign-plan
+    workPackages:
+      from: docs/marketing/content-packages.yaml
+      builderByType:
+        post: copywriter
+        email: copywriter
+        landing-page: copywriter
+      reviewersByType:
+        post: [brand-reviewer]
+        email: [brand-reviewer, marketing-analyst]
+        landing-page: [brand-reviewer, marketing-strategist]
+      task: Write the piece described in the package, in the voice of docs/marketing/voice-guide.md.
+      reviewTask: Check voice, claims, call to action and the length limit of the channel.
+    acceptance:
+      - Every package of the campaign plan has a draft in its target file.
+  - id: measurement-plan
+    goal: Define how the launch is measured.
+    dependsOn:
+      - campaign-plan
+    participants:
+      - agent: marketing-analyst
+        mode: build
+        task: Write the measurement plan with metric, source, target and date for every plan item, and the UTM scheme.
+        outputs:
+          - docs/marketing/measurement-plan.md
+      - agent: marketing-strategist
+        mode: review
+        task: Check that the metrics measure the goal of the brief and that the targets are reachable.
+    acceptance:
+      - Every campaign week has a metric with a target.
+  - id: launch-review
+    goal: Confirm that the campaign is ready for a human to approve and publish.
+    dependsOn:
+      - content
+      - measurement-plan
+    participants:
+      - agent: brand-reviewer
+        mode: build
+        task: Write the launch checklist with every piece, its status, open risks and what the human must approve before publishing.
+        outputs:
+          - docs/marketing/launch-checklist.md
+      - agent: marketing-strategist
+        mode: review
+        task: Check that the checklist covers every piece of the campaign plan and every risk raised in earlier phases.
+    acceptance:
+      - Every piece of the campaign plan is listed with its file and status.
+      - Nothing in the checklist says a piece was published.

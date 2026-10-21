@@ -7,6 +7,7 @@
 //   node validate.mjs setup <file>               check a create or modify draft against the schema
 //   node validate.mjs list                       list the existing pipelines
 //   node validate.mjs checkpoints <name>         find unfinished phases on pipeline/<name>/* branches (run git fetch first)
+//   node validate.mjs domains                    check and list the domain packs in domains/index.yaml
 //
 // Options: --root <project-dir> (default: current directory)
 //          --agents-dir <dir> (additional directory with agent files, may be repeated)
@@ -119,6 +120,38 @@ export function readYaml(file, errors) {
   }
 }
 
+// ---------- Domain packs ----------
+
+// A pipeline without domains is from a version that only knew software.
+export const DEFAULT_DOMAINS = ["software"];
+
+export function loadDomains(errors) {
+  const file = join(PLUGIN_ROOT, "domains", "index.yaml");
+  const index = readYaml(file, errors);
+  if (index === undefined) return [];
+  const schemaErrors = checkAgainst("domains.schema.json", index, "domains/index.yaml");
+  if (schemaErrors.length) {
+    errors.push(...schemaErrors);
+    return [];
+  }
+  const names = index.packs.map((p) => p.name);
+  for (const n of new Set(names.filter((n, i) => names.indexOf(n) !== i))) errors.push(`domains/index.yaml: pack "${n}" is listed twice`);
+  for (const n of names) {
+    if (!existsSync(join(PLUGIN_ROOT, "domains", n, "SKILL.md"))) errors.push(`domains/index.yaml: pack "${n}" has no domains/${n}/SKILL.md`);
+  }
+  return index.packs;
+}
+
+function checkDomains(selected, label) {
+  const errors = [];
+  const known = loadDomains(errors).map((p) => p.name);
+  if (errors.length) return errors;
+  for (const d of selected) {
+    if (!known.includes(d)) errors.push(`${label}: unknown domain pack "${d}" (known: ${known.join(", ")})`);
+  }
+  return errors;
+}
+
 // ---------- Checks a schema cannot express ----------
 
 function agentDirs(root, extra) {
@@ -225,7 +258,7 @@ function checkSemantics(pipeline, name, dirs) {
       }
     }
     if (p.code && !rules.preCommit) {
-      warnings.push(`${where} is a code phase, but rules.preCommit is empty`);
+      warnings.push(`${where} has code: true, but rules.preCommit is empty`);
     }
   }
 
@@ -422,14 +455,20 @@ function cmdPipeline(root, name, extraDirs, explicitRef) {
   errors.push(...checkAgainst("pipeline.schema.json", pipeline, name));
   if (errors.length) return { ok: false, errors };
   const sem = checkSemantics(pipeline, name, agentDirs(root, extraDirs));
+  const domains = pipeline.domains ?? DEFAULT_DOMAINS;
+  if (pipeline.domains === undefined) {
+    sem.warnings.push(`domains is not set, so the software pack is used; add "domains: [software]" (or the fitting packs) to the pipeline`);
+  }
+  const domainErrors = checkDomains(domains, `${name}: domains`);
   const phaseIds = pipeline.phases.map((p) => p.id);
   const ref = statusRef(root, pipeline, name, explicitRef);
   const status = checkStatusFiles(root, name, phaseIds, ref);
-  const all = [...sem.errors, ...status.errors];
+  const all = [...domainErrors, ...sem.errors, ...status.errors];
   return {
     ok: all.length === 0,
     errors: all,
     warnings: sem.warnings,
+    domains,
     phases: phaseIds,
     done: status.done,
     target: targetBranch(pipeline, name),
@@ -454,6 +493,7 @@ function cmdSetup(root, file) {
   const errors = [];
   const data = readYaml(resolve(file), errors);
   if (data !== undefined) errors.push(...checkAgainst("setup.schema.json", data, "draft"));
+  if (!errors.length && data.domains) errors.push(...checkDomains(data.domains.selected, "draft: domains.selected"));
   if (!errors.length && data.kind === "modify") {
     if (!data.name) errors.push("draft: a modify draft needs the name of the pipeline it changes");
     else if (!existsSync(join(root, ".claude", "expert-teams", "pipelines", `${data.name}.yaml`))) {
@@ -461,6 +501,12 @@ function cmdSetup(root, file) {
     }
   }
   return { ok: errors.length === 0, errors };
+}
+
+function cmdDomains() {
+  const errors = [];
+  const packs = loadDomains(errors);
+  return { ok: errors.length === 0, errors, packs: packs.map(({ name, description }) => ({ name, description })) };
 }
 
 function parseArgv(argv) {
@@ -492,8 +538,10 @@ export function run(argv) {
       return cmdList(opts.root);
     case "checkpoints":
       return cmdCheckpoints(opts.root, rest[0], opts.ref);
+    case "domains":
+      return cmdDomains();
     default:
-      return { ok: false, usage: true, errors: ["Usage: node validate.mjs args|pipeline|new-name|setup|list|checkpoints ..."] };
+      return { ok: false, usage: true, errors: ["Usage: node validate.mjs args|pipeline|new-name|setup|list|checkpoints|domains ..."] };
   }
 }
 
