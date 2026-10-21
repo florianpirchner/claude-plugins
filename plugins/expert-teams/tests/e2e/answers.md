@@ -11,15 +11,16 @@ The end-to-end test has no human. These are the user's answers. When the skill a
 - Basis: `docs/input/product-vision.md`, no existing code.
 - I am done telling.
 
-## Stage 2: Grill me
+## Domain packs and stage 2: Grill me
 
+- Domain packs: `software` only. If another pack is proposed, decline it.
 - Technology: fixed idea. Node.js 18 or later, plain JavaScript (ES modules), `node:http` and `node:test`, no dependencies.
 - Open points: the vision is the answer. If something is not in it, choose the simplest behaviour and record it as an assumption.
 - Base questions, confirm this list:
   1. Language: code `en`, docs `en`, ui `en`.
   2. Delivery: `commit` (there is no GitHub here).
   3. Target branch: `main`. Integration branch: the default `expert-teams/todo-api`.
-  4. Check before every commit in code phases: `npm test`.
+  4. Check before every commit: `npm test`, for the implementation phase.
   5. Worktrees: `true`, at most 2 agents in parallel.
   6. Checkpoints: `true`.
   7. Review rounds: 2.

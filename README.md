@@ -13,7 +13,7 @@ Flo's Claude Code plugins. This repository is a plugin marketplace and holds the
 
 | Plugin | What it does |
 |---|---|
-| [expert-teams](plugins/expert-teams) | Guided design, change and execution of builder/challenger pipelines with subagents: `/expert-teams:create`, `/expert-teams:modify`, `/expert-teams:run`, `/expert-teams:status`, `/expert-teams:migrate`. |
+| [expert-teams](plugins/expert-teams) | Guided design, change and execution of builder/challenger pipelines with subagents, for software, marketing, research and docs: `/expert-teams:create`, `/expert-teams:modify`, `/expert-teams:run`, `/expert-teams:status`, `/expert-teams:migrate`. |
 
 ## Structure
 

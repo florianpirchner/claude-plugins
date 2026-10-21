@@ -3,6 +3,8 @@
 schemaVersion: 1
 name: todo-api
 description: Tiny in-memory todo HTTP API, from requirements to acceptance.
+domains:
+  - software
 inputs:
   - docs/input/product-vision.md
 rules:

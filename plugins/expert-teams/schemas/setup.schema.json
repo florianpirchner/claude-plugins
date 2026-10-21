@@ -28,6 +28,17 @@
       "enum": ["brainstorming", "grill-me", "team", "flow", "generate", "done"]
     },
     "updatedAt": { "type": "string", "minLength": 1 },
+    "domains": {
+      "type": "object",
+      "description": "Domain packs from <plugin>/domains/index.yaml, proposed after the brainstorming and confirmed at the start of grill me.",
+      "required": ["selected"],
+      "additionalProperties": false,
+      "properties": {
+        "selected": { "type": "array", "uniqueItems": true, "items": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" } },
+        "reasons": { "type": "object", "additionalProperties": { "type": "string" }, "description": "Per pack: why it fits, in one sentence." },
+        "confirmed": { "type": "boolean" }
+      }
+    },
     "brainstorming": {
       "type": "object",
       "required": ["summary", "openQuestions"],
@@ -50,16 +61,21 @@
       "properties": {
         "tech": {
           "type": "object",
-          "description": "Part A: the settled technology, written to docs/input/tech-stack.md at the end of stage 2.",
+          "description": "Software pack: the settled technology, written to docs/input/tech-stack.md at the end of grill me.",
           "required": ["mode"],
           "additionalProperties": false,
           "properties": {
-            "mode": { "type": "string", "enum": ["given", "advised"], "description": "given: the user named it. advised: worked out with references/stack-guide.md." },
+            "mode": { "type": "string", "enum": ["given", "advised"], "description": "given: the user named it. advised: worked out with domains/software/stack-guide.md." },
             "hosting": { "type": "string" },
             "stack": { "type": "object", "description": "One entry per layer, e.g. backend, database, frontend.", "additionalProperties": { "type": "string" } },
             "reasons": { "type": "array", "items": { "type": "string" } },
             "confirmed": { "type": "boolean" }
           }
+        },
+        "packs": {
+          "type": "object",
+          "description": "Answers to the grill me questions of each domain pack, keyed by pack name, e.g. the marketing brief. The software pack uses tech instead.",
+          "additionalProperties": { "type": "object" }
         },
         "findings": {
           "type": "array",

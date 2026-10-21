@@ -5,6 +5,9 @@
 schemaVersion: 1
 name: business-tool-mvp
 description: 'Example: internal business tool (offer calculation, forecast, time tracking, monthly report) from requirements document to acceptance.'
+# Domain packs whose knowledge create, modify and run load (domains/<pack>/SKILL.md).
+domains:
+  - software
 inputs:
   - docs/input/produktvision.md
 rules:
@@ -25,7 +28,7 @@ rules:
   baseBranch: main
   # Phases are merged into expert-teams/business-tool-mvp; one final pull request brings it into main.
   # integrationBranch: none would merge every phase straight into main.
-  # Lint, type check and tests before every commit in code phases.
+  # Lint, type check and tests before every commit in phases with code: true.
   preCommit: npm run check
   # Commit and push every build and review step, so a crashed run loses at most one step.
   pushEveryRound: true

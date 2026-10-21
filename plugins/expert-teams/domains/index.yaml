@@ -1,0 +1,19 @@
+# Domain packs of the expert-teams plugin.
+# The core skills (create, modify, run, status, migrate) know roles, phases, pairs, rounds, consult questions,
+# branches and status, but nothing about any field of work. That knowledge lives in the packs below.
+# /expert-teams:create reads this list after the brainstorming, proposes the fitting packs and reads each chosen
+# domains/<name>/SKILL.md. The pipeline records them in `domains`, so run and modify load the same packs.
+# A new pack is a new folder domains/<name>/ with a SKILL.md and an entry here. Schema: schemas/domains.schema.json
+packs:
+  - name: software
+    description: Building software, from requirements and architecture to code, tests and operation.
+    cues: [app, website, web shop, API, backend, frontend, database, code, programming, tool, automation, bug, refactoring, migration, deployment, server, mobile app, tests]
+  - name: marketing
+    description: Planning and writing marketing, from audience and positioning to campaigns, content and measurement. Produces documents and drafts, never publishes.
+    cues: [audience, target group, positioning, brand, campaign, launch, newsletter, social media, posts, ads, landing page copy, SEO, content plan, messaging, leads, conversion]
+  - name: research
+    description: Research and analysis of markets, technologies, competitors or options for a decision, with every claim backed by a source.
+    cues: [research, analysis, market analysis, competitors, comparison, options, evaluate, study, sources, due diligence, landscape, which tool should we use]
+  - name: docs
+    description: Writing documentation such as user manuals, how-to guides, specifications, READMEs and API references, checked by reading it as the target reader.
+    cues: [documentation, manual, user guide, handbook, how-to, README, API docs, onboarding, specification, wiki, help pages, tutorial]

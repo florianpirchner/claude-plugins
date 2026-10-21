@@ -1,6 +1,6 @@
 # Stack guide
 
-Used by stage 2 (grill me, part A) of `/expert-teams:create` and `/expert-teams:modify` when the user wants advice on the technology. It leads from the hard limits to the stack, never the other way round. Edit this file freely: the skills read it at run time and contain no stack knowledge of their own.
+Part of the software pack. Used in grill me of `/expert-teams:create` and `/expert-teams:modify` when the user wants advice on the technology. It leads from the hard limits to the stack, never the other way round. Edit this file freely: the skills read it at run time and contain no stack knowledge of their own.
 
 ## How to use it
 

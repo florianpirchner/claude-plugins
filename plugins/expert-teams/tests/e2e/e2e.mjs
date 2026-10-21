@@ -110,6 +110,7 @@ function checkCreate() {
   const v = script("validate.mjs", ["pipeline", NAME]);
   check("create: pipeline file is valid", v.ok, (v.errors ?? []).join("; "));
   check("create: the three scripted phases", JSON.stringify(v.phases) === JSON.stringify(PHASES), JSON.stringify(v.phases));
+  check("create: domain pack software chosen", JSON.stringify(v.domains) === JSON.stringify(["software"]) && !(v.warnings ?? []).some((w) => w.startsWith("domains")), JSON.stringify(v.domains));
   for (const agent of ["product-manager", "backend-developer", "tester"]) {
     check(`create: agent ${agent}`, existsSync(join(project, ".claude", "agents", `${agent}.md`)));
   }

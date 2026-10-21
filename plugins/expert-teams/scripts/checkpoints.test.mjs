@@ -128,7 +128,7 @@ test("status comes from the integration branch while main is checked out", () =>
   commitAll(root, "views done");
   git(root, "push", "-q", "-u", "origin", `expert-teams/${NAME}`);
   git(root, "checkout", "-q", "main");
-  const r = run(["pipeline", NAME, "--root", root, "--agents-dir", join(PLUGIN, "examples", "agents")]);
+  const r = run(["pipeline", NAME, "--root", root, "--agents-dir", join(PLUGIN, "domains", "software", "agents")]);
   assert.equal(r.ok, true, JSON.stringify(r.errors));
   assert.equal(r.target, `expert-teams/${NAME}`);
   assert.deepEqual(r.done.sort(), ["requirements", "views"]);
@@ -146,10 +146,10 @@ test("integrationBranch none reads main, the same name as baseBranch is an error
   const file = join(root, ".claude", "expert-teams", "pipelines", `${NAME}.yaml`);
   const original = readFileSync(file, "utf8");
   writeFileSync(file, original.replace("  baseBranch: main\n", "  baseBranch: main\n  integrationBranch: none\n"));
-  const r = run(["pipeline", NAME, "--root", root, "--agents-dir", join(PLUGIN, "examples", "agents")]);
+  const r = run(["pipeline", NAME, "--root", root, "--agents-dir", join(PLUGIN, "domains", "software", "agents")]);
   assert.equal(r.ok, true, JSON.stringify(r.errors));
   assert.equal(r.target, "main");
   assert.equal(r.statusFrom, "working tree");
   writeFileSync(file, original.replace("  baseBranch: main\n", "  baseBranch: main\n  integrationBranch: main\n"));
-  assert.equal(run(["pipeline", NAME, "--root", root, "--agents-dir", join(PLUGIN, "examples", "agents")]).ok, false);
+  assert.equal(run(["pipeline", NAME, "--root", root, "--agents-dir", join(PLUGIN, "domains", "software", "agents")]).ok, false);
 });

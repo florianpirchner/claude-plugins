@@ -1,6 +1,6 @@
 // Tests for validate.mjs. Run: node --test plugins/expert-teams/scripts/validate.test.mjs
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
@@ -10,7 +10,7 @@ import { dump, JSON_SCHEMA, load } from "./vendor/js-yaml.mjs";
 
 const PLUGIN = join(dirname(fileURLToPath(import.meta.url)), "..");
 const EXAMPLE = load(readFileSync(join(PLUGIN, "examples", "business-tool-mvp.yaml"), "utf8"), { schema: JSON_SCHEMA });
-const AGENTS = join(PLUGIN, "examples", "agents");
+const AGENTS = join(PLUGIN, "domains", "software", "agents");
 
 function project(pipeline, name = pipeline.name) {
   const root = mkdtempSync(join(tmpdir(), "expert-teams-"));
@@ -249,4 +249,56 @@ test("setup accepts the technology of grill me", () => {
   draft.grillMe.tech.mode = "guessed";
   writeFileSync(file, dump(draft));
   assert.equal(run(["setup", file]).ok, false);
+});
+
+test("domain packs: index, unknown pack and default", () => {
+  const index = run(["domains"]);
+  assert.equal(index.ok, true, JSON.stringify(index.errors));
+  for (const { name } of index.packs) {
+    const dir = join(PLUGIN, "domains", name);
+    assert.ok(existsSync(join(dir, "SKILL.md")), `${name}/SKILL.md`);
+    assert.ok(readdirSync(join(dir, "agents")).some((f) => f.endsWith(".md")), `${name}/agents/`);
+    const skill = readFileSync(join(dir, "SKILL.md"), "utf8");
+    for (const section of ["## Grill me", "## Base questions", "## Team", "## Flow", "## Build and review"]) {
+      assert.ok(skill.includes(section), `${name}/SKILL.md has no ${section}`);
+    }
+  }
+
+  assert.deepEqual(check(project(clone())).domains, ["software"]);
+
+  const unknown = clone();
+  unknown.domains = ["software", "cooking"];
+  const r = check(project(unknown));
+  assert.equal(r.ok, false);
+  assert.ok(r.errors.some((e) => e.includes('unknown domain pack "cooking"')));
+
+  const missing = clone();
+  delete missing.domains;
+  const m = check(project(missing));
+  assert.equal(m.ok, true, JSON.stringify(m.errors));
+  assert.deepEqual(m.domains, ["software"]);
+  assert.ok(m.warnings.some((w) => w.includes("domains is not set")));
+
+  const none = clone();
+  none.domains = [];
+  assert.deepEqual(check(project(none)).domains, []);
+});
+
+test("the marketing example is valid with the marketing roles", () => {
+  const p = load(readFileSync(join(PLUGIN, "examples", "product-launch.yaml"), "utf8"), { schema: JSON_SCHEMA });
+  const r = run(["pipeline", "product-launch", "--root", project(p), "--agents-dir", join(PLUGIN, "domains", "marketing", "agents")]);
+  assert.equal(r.ok, true, JSON.stringify(r.errors));
+  assert.deepEqual(r.domains, ["marketing"]);
+});
+
+test("setup rejects an unknown pack in the draft", () => {
+  const root = project(clone());
+  const file = join(root, "draft.yaml");
+  const draft = { draft: "d", stage: "grill-me", updatedAt: "now", domains: { selected: ["marketing", "astrology"] }, brainstorming: { summary: "", openQuestions: [] }, team: { roles: [] }, flow: { phases: [] } };
+  writeFileSync(file, dump(draft));
+  const r = run(["setup", file, "--root", root]);
+  assert.ok(r.errors.some((e) => e.includes('unknown domain pack "astrology"')), JSON.stringify(r.errors));
+  draft.domains.selected = ["marketing", "research"];
+  writeFileSync(file, dump(draft));
+  assert.equal(run(["setup", file, "--root", root]).ok, true);
 });
