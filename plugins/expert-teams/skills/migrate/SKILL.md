@@ -1,6 +1,6 @@
 ---
 name: migrate
-description: Brings pipelines of older versions of the plugin (JSON files in .claude/pipelines/, JSON status files, docs/entscheidungen/<name>/) into the current layout and YAML, and adds domains: [software] to pipelines that have no domain packs yet. Shows the plan first and changes nothing before the user confirms. Only on explicit invocation.
+description: Brings pipelines of older versions of the plugin (JSON files in .claude/pipelines/, JSON status files, docs/entscheidungen/<name>/) into the current layout and YAML, adds domains: [software] to pipelines that have no domain packs yet, and converts schemaVersion 1 phases (participants list) to one builder, reviewers and consultants. Shows the plan first and changes nothing before the user confirms. Only on explicit invocation.
 disable-model-invocation: true
 ---
 
@@ -17,7 +17,7 @@ The script does the work; you only show, ask and commit. Do not move or edit the
    ```
    - `nothingToDo: true`: say that everything is current and stop.
    - `errors`: show them and stop. They name the file to fix by hand (usually a file that exists in the old and the new place).
-   - Otherwise show the plan: every step from `steps` as one line (`convert`, `move` or `edit`, from, to), the new pipeline file from `pipelineYaml` in a fenced `yaml` block, the `added` rules with their comments, and the `notes`. `domains` in `added` means the pipeline gets `domains: [software]`, the only field of work of earlier versions; if the pipeline is about something else (e.g. marketing), say that the user can change it afterwards with `/expert-teams:modify <name>`.
+   - Otherwise show the plan: every step from `steps` as one line (`convert`, `move` or `edit`, from, to), the new pipeline file from `pipelineYaml` in a fenced `yaml` block, the `added` rules with their comments, and the `notes`. `domains` in `added` means the pipeline gets `domains: [software]`, the only field of work of earlier versions; if the pipeline is about something else (e.g. marketing), say that the user can change it afterwards with `/expert-teams:modify <name>`. `builder`, `reviewers`, `consultants` in `added` means the phases move from the old `participants` list to one builder, reviewers and consultants (the `consultWith` lists of the phase become its consultants). Show every note about a phase with several builders prominently: an open phase is split into `<id>` and `<id>-<agent>` with the same goal, reviewers and acceptance; a done phase keeps its first builder. Offer to adjust the split phases' tasks and acceptance criteria afterwards with `/expert-teams:modify <name>`.
 3. **Decisions.** For every entry in `decisions` ask the user, in one message together with the confirmation of the plan:
    - `language`: in which language the existing project is written: code (identifiers, tables, commits), documents, user interface. Propose what you see in the project (look at a few source files and documents). Explain that new projects default to English, and that switching an existing project to English means its existing text would be reworked phase by phase.
    Ask: apply the plan with these answers?

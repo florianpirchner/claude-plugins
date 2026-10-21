@@ -20,7 +20,7 @@ Argument: `$ARGUMENTS`
    ```
    node <plugin>/scripts/visualize.mjs <name>
    ```
-   It writes `docs/pipeline-status/<name>/README.md` (Mermaid chart top to bottom: phase, builders and state per box, reviewers in the list below; GitHub shows it when the folder is opened) and `docs/pipeline-status/<name>/pipeline.html` (one file without dependencies; hover or tap a phase for builders, reviewers, tasks, round and acceptance criteria). States: done, running with its round, waiting for you, startable, open; running and waiting come from `.claude/expert-teams/runs/<name>.yaml`. Name both files and say that the HTML file opens locally in a browser. Do not commit them; the run commits them with every delivered phase.
+   It writes `docs/pipeline-status/<name>/README.md` (Mermaid chart top to bottom: phase, builder and state per box, reviewers and consultants in the list below; GitHub shows it when the folder is opened) and `docs/pipeline-status/<name>/pipeline.html` (one file without dependencies; hover or tap a phase for builders, reviewers, tasks, round and acceptance criteria). States: done, running with its round, waiting for you, startable, open; running and waiting come from `.claude/expert-teams/runs/<name>.yaml`. Name both files and say that the HTML file opens locally in a browser. Do not commit them; the run commits them with every delivered phase.
 6. If the validation reports errors, list them below the table.
 7. List open drafts in `.claude/expert-teams/drafts/` (stage other than `done`) with kind, stage and last change, and note that `/expert-teams:create` continues create drafts and `/expert-teams:modify <name>` continues modify drafts.
 8. End with the fitting next command, e.g. `/<name>` or `/expert-teams:run <name> <phase-id>`.

@@ -5,9 +5,10 @@
 //
 // Writes into <out> (default: docs/pipeline-status/<name>/):
 //   README.md      Mermaid flowchart top to bottom (GitHub shows it when you open the folder),
-//                  each box with phase, builders and state, below it a list with the reviewers.
-//   pipeline.html  a single file without dependencies; hover or click on a phase shows builders,
-//                  reviewers, tasks, round and acceptance criteria.
+//                  each box with phase, builder (one per package type for work packages) and state,
+//                  below it a list with the reviewers and consultants.
+//   pipeline.html  a single file without dependencies; hover or click on a phase shows builder,
+//                  reviewers, consultants, tasks, round and acceptance criteria.
 //
 // State per phase: done (status file with status done), running or waiting-for-user
 // (.claude/expert-teams/runs/<name>.yaml, written by /expert-teams:run), startable (all
@@ -56,19 +57,23 @@ function readRun(file, name, errors) {
 
 const unique = (list) => [...new Set(list)];
 
-function roles(phase, mode) {
-  const fromParticipants = (phase.participants ?? []).filter((p) => p.mode === mode).map((p) => p.agent);
+// One builder per phase; a phase with work packages has one builder per package type.
+function builders(phase) {
   const wp = phase.workPackages;
-  if (!wp) return unique(fromParticipants);
-  const fromPackages = mode === "build" ? Object.values(wp.builderByType ?? {}) : Object.values(wp.reviewersByType ?? {}).flat();
-  return unique([...fromParticipants, ...fromPackages]);
+  return unique([...(phase.builder ? [phase.builder.agent] : []), ...Object.values(wp?.builderByType ?? {})]);
+}
+
+function reviewers(phase) {
+  const wp = phase.workPackages;
+  return unique([...(phase.reviewers ?? []).map((r) => r.agent), ...Object.values(wp?.reviewersByType ?? {}).flat()]);
 }
 
 function tasks(phase, mode) {
-  const list = (phase.participants ?? []).filter((p) => p.mode === mode).map((p) => ({ agent: p.agent, task: p.task }));
+  const list = mode === "build" ? (phase.builder ? [phase.builder] : []) : (phase.reviewers ?? []);
+  const out = list.map((p) => ({ agent: p.agent, task: p.task }));
   const wp = phase.workPackages;
-  if (wp) list.push({ agent: "per work package", task: mode === "build" ? wp.task : wp.reviewTask });
-  return list;
+  if (wp) out.push({ agent: "per work package", task: mode === "build" ? wp.task : wp.reviewTask });
+  return out;
 }
 
 // Wave = 1 + highest wave of the dependencies, so phases of one wave can run in parallel.
@@ -113,8 +118,9 @@ export function buildModel(root, name, runFile = join(root, ".claude", "expert-t
       round: done[p.id]?.rounds ?? running[p.id]?.round ?? null,
       question: running[p.id]?.question ?? null,
       waitingFor: state === "open" ? deps.filter((d) => !done[d]) : [],
-      builders: roles(p, "build"),
-      reviewers: roles(p, "review"),
+      builders: builders(p),
+      reviewers: reviewers(p),
+      consultants: (p.consultants ?? []).map((c) => ({ agent: c.agent, about: c.about ?? "" })),
       buildTasks: tasks(p, "build"),
       reviewTasks: tasks(p, "review"),
       acceptance: p.acceptance ?? [],
@@ -164,6 +170,7 @@ export function renderMarkdown(model, generatedAt) {
 
   const list = model.phases.map((p) => {
     let line = `- **${p.id}** (${stateLine(p)}): reviewers ${p.reviewers.length ? p.reviewers.join(", ") : "none"}`;
+    if (p.consultants.length) line += `; consultants ${p.consultants.map((c) => c.agent).join(", ")}`;
     if (p.state === "waiting-for-user" && p.question) line += `. Question: ${p.question}`;
     if (p.state === "open" && p.waitingFor.length) line += `. Waits for ${p.waitingFor.join(", ")}`;
     return line;
@@ -182,7 +189,7 @@ export function renderMarkdown(model, generatedAt) {
     "",
     ...lines,
     "",
-    "## Reviewers and state",
+    "## Reviewers, consultants and state",
     "",
     ...list,
     "",
@@ -275,8 +282,9 @@ function show(id) {
   details.innerHTML =
     "<h3>" + esc(p.id) + "</h3><p>" + esc(p.goal) + "</p>" +
     "<h4>State</h4><p>" + esc(state) + "</p>" +
-    "<h4>Builders</h4>" + list(p.buildTasks.map((t) => "<strong>" + esc(t.agent) + "</strong>: " + esc(t.task))) +
+    "<h4>Builder</h4>" + list(p.buildTasks.map((t) => "<strong>" + esc(t.agent) + "</strong>: " + esc(t.task))) +
     "<h4>Reviewers</h4>" + list(p.reviewTasks.map((t) => "<strong>" + esc(t.agent) + "</strong>: " + esc(t.task))) +
+    "<h4>Consultants</h4>" + list(p.consultants.map((c) => "<strong>" + esc(c.agent) + "</strong>" + (c.about ? ": " + esc(c.about) : ""))) +
     "<h4>Acceptance</h4>" + list(p.acceptance.map(esc)) +
     "<h4>Depends on</h4><p>" + esc(p.dependsOn.join(", ") || "nothing") + "</p>";
 }

@@ -154,6 +154,16 @@ function checkDomains(selected, label) {
 
 // ---------- Checks a schema cannot express ----------
 
+// Up to 0.14.0 a phase listed its roles in participants, each with mode build or review.
+export function isVersion1(pipeline) {
+  return pipeline?.schemaVersion === 1 || (Array.isArray(pipeline?.phases) && pipeline.phases.some((p) => p && "participants" in p));
+}
+
+// Phase of a status file or branch id: the phase itself, else the phase whose work package it is.
+export function phaseOf(id, phaseIds) {
+  return phaseIds.includes(id) ? id : phaseIds.find((p) => id.startsWith(`${p}-`));
+}
+
 function agentDirs(root, extra) {
   return [join(root, ".claude", "agents"), join(homedir(), ".claude", "agents"), ...extra];
 }
@@ -219,32 +229,32 @@ function checkSemantics(pipeline, name, dirs) {
       if (d === p.id) errors.push(`${where} depends on itself`);
       else if (!ids.includes(d)) errors.push(`${where}: dependsOn names unknown phase "${d}"`);
     }
-    const parts = p.participants ?? [];
-    if (!p.workPackages) {
-      if (!parts.some((x) => x.mode === "build")) errors.push(`${where} needs at least one role with mode build`);
-      if (!parts.some((x) => x.mode === "review")) errors.push(`${where} needs at least one role with mode review`);
+    const reviewers = p.reviewers ?? [];
+    const consultants = p.consultants ?? [];
+    if (p.workPackages) {
+      if (p.builder) errors.push(`${where} has workPackages, so its builders come from workPackages.builderByType; remove builder`);
+      if (p.reviewers) errors.push(`${where} has workPackages, so its reviewers come from workPackages.reviewersByType; remove reviewers`);
+    } else {
+      if (!p.builder) errors.push(`${where} needs a builder`);
+      if (!reviewers.length) errors.push(`${where} needs at least one reviewer`);
     }
-    for (const x of parts) {
-      agents.add(x.agent);
-      if (x.mode === "build" && !(x.outputs?.length > 0)) {
-        errors.push(`${where}: role "${x.agent}" (build) needs outputs`);
-      }
-      if (x.mode === "review" && x.outputs?.length) {
-        warnings.push(`${where}: role "${x.agent}" (review) has outputs, but review roles do not change files`);
-      }
-      for (const c of x.consultWith ?? []) {
-        agents.add(c);
-        if (c === x.agent) errors.push(`${where}: role "${x.agent}" lists itself in consultWith`);
-      }
-      if (x.consultWith?.length && !consultEnabled) {
-        warnings.push(`${where}: role "${x.agent}" has consultWith, but rules.consult.enabled is false`);
-      }
+    if (p.builder) agents.add(p.builder.agent);
+    const seenReviewers = new Set();
+    for (const r of reviewers) {
+      agents.add(r.agent);
+      if (r.agent === p.builder?.agent) errors.push(`${where}: "${r.agent}" is the builder and cannot review its own results`);
+      if (seenReviewers.has(r.agent)) errors.push(`${where}: reviewer "${r.agent}" is listed twice`);
+      seenReviewers.add(r.agent);
     }
-    const roleKeys = new Set();
-    for (const x of parts) {
-      const key = `${x.agent}/${x.mode}`;
-      if (roleKeys.has(key)) errors.push(`${where}: role "${x.agent}" is listed twice with mode ${x.mode}`);
-      roleKeys.add(key);
+    const seenConsultants = new Set();
+    for (const c of consultants) {
+      agents.add(c.agent);
+      if (c.agent === p.builder?.agent) errors.push(`${where}: "${c.agent}" is the builder and cannot be its own consultant`);
+      if (seenConsultants.has(c.agent)) errors.push(`${where}: consultant "${c.agent}" is listed twice`);
+      seenConsultants.add(c.agent);
+    }
+    if (consultants.length && !consultEnabled) {
+      warnings.push(`${where} has consultants, but rules.consult.enabled is false`);
     }
     if (p.workPackages) {
       const wp = p.workPackages;
@@ -338,7 +348,7 @@ function checkStatusFiles(root, name, phaseIds, ref = null) {
     const id = f.slice(0, -5);
     if (data.pipeline !== undefined && data.pipeline !== name) errors.push(`${f}: pipeline is "${data.pipeline}", expected "${name}"`);
     if (data.phase !== undefined && data.phase !== id) errors.push(`${f}: phase is "${data.phase}", expected "${id}"`);
-    const phase = phaseIds.find((p) => id === p || id.startsWith(`${p}-`));
+    const phase = phaseOf(id, phaseIds);
     if (!phase) errors.push(`${f}: belongs to no phase of the pipeline`);
     if (data.status === "done" && phaseIds.includes(id)) done.push(id);
   }
@@ -382,7 +392,7 @@ function cmdCheckpoints(root, name, explicitRef) {
   const { done } = checkStatusFiles(root, name, phaseIds, statusRef(root, pipeline, name, explicitRef));
   const checkpoints = [];
   for (const [id, refs] of [...branchRefs(root, name)].sort(([a], [b]) => a.localeCompare(b))) {
-    const phase = phaseIds.find((p) => id === p || id.startsWith(`${p}-`));
+    const phase = phaseOf(id, phaseIds);
     if (!phase || done.includes(id)) continue;
     const ref = newestRef(refs, root);
     const entry = { id, phase, branch: `pipeline/${name}/${id}`, ref, pushed: ref === refs.remote };
@@ -452,6 +462,9 @@ function cmdPipeline(root, name, extraDirs, explicitRef) {
   const errors = [];
   const pipeline = readYaml(file, errors);
   if (pipeline === undefined) return { ok: false, errors };
+  if (isVersion1(pipeline)) {
+    return { ok: false, errors: [`${name} uses the layout of expert-teams up to 0.14.0 (schemaVersion 1, participants with modes); convert it with /expert-teams:migrate`] };
+  }
   errors.push(...checkAgainst("pipeline.schema.json", pipeline, name));
   if (errors.length) return { ok: false, errors };
   const sem = checkSemantics(pipeline, name, agentDirs(root, extraDirs));

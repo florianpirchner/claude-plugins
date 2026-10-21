@@ -34,7 +34,7 @@ When looking for open points, also check: numbers or claims without a source, a 
 ## Team
 
 - Example roles: `<pack>/agents/`: `marketing-strategist` (research, positioning, plan), `copywriter` (all copy), `marketing-analyst` (metrics, tracking plan, plausibility of numbers), `brand-reviewer` (voice, consistency, claims and legal limits). Use them as inspiration, do not copy them blindly.
-- The copywriter should not review its own copy; the brand reviewer and the strategist review it.
+- The copywriter should not review its own copy; the brand reviewer and the strategist review it. Positioning (strategist) and voice guide (copywriter) are two phases, each with one builder; the other role consults or reviews.
 - Marketing roles need no `Bash` unless they run a check command.
 
 ## Flow

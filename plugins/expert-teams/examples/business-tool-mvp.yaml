@@ -1,8 +1,9 @@
 # Example pipeline of the expert-teams plugin: the internal business tool from
 # claude-agents-test (offer calculation, forecast, time tracking, monthly report).
-# Each phase is built by its build roles and checked by its review roles.
+# Each phase has exactly one builder, reviewers who check its results, and optional
+# consultants who answer questions the builder or a reviewer cannot settle alone.
 # Schema: schemas/pipeline.schema.json
-schemaVersion: 1
+schemaVersion: 2
 name: business-tool-mvp
 description: 'Example: internal business tool (offer calculation, forecast, time tracking, monthly report) from requirements document to acceptance.'
 # Domain packs whose knowledge create, modify and run load (domains/<pack>/SKILL.md).
@@ -57,21 +58,20 @@ phases:
     dependsOn: []
     inputs:
       - docs/input/produktvision.md
-    participants:
-      - agent: product-manager
-        mode: build
-        task: Derive user stories and requirements with IDs and acceptance criteria from the product vision.
-        focus:
-          - Customers and hourly rates
-          - Offer calculation
-          - Time tracking
-          - Forecast
-          - Monthly report
-          - Login with a shared password
-        outputs:
-          - docs/specification/requirements.md
+    builder:
+      agent: product-manager
+      task: Derive user stories and requirements with IDs and acceptance criteria from the product vision.
+      focus:
+        - Customers and hourly rates
+        - Offer calculation
+        - Time tracking
+        - Forecast
+        - Monthly report
+        - Login with a shared password
+      outputs:
+        - docs/specification/requirements.md
+    reviewers:
       - agent: consultant-user
-        mode: review
         task: Check whether the time tracking requirements work quickly and with few errors in everyday use.
         focus:
           - Week view
@@ -79,14 +79,12 @@ phases:
           - Corrections
           - Wrong bookings
       - agent: controller
-        mode: review
         task: Check whether calculation, forecast and reports are fully specified from a business point of view.
         focus:
           - Risk buffer and discount
           - Fixed price vs. time and materials
           - Plan vs. actual comparison
       - agent: project-manager
-        mode: review
         task: Check that the scope stays within the MVP and nothing from the 'Nicht im MVP' (not in the MVP) section has slipped in.
         focus:
           - Scope
@@ -104,27 +102,25 @@ phases:
     inputs:
       - docs/input/produktvision.md
       - docs/specification/requirements.md
-    participants:
-      - agent: controller
-        mode: build
-        task: Describe every formula for calculation, forecast and metrics with its rounding rule and at least one worked example.
-        focus:
-          - Offer price
-          - Spreading fixed prices across months
-          - Revenue per month
-          - Plan vs. actual variance
-          - Margin
-        outputs:
-          - docs/specification/calculation-forecast.md
+    builder:
+      agent: controller
+      task: Describe every formula for calculation, forecast and metrics with its rounding rule and at least one worked example.
+      focus:
+        - Offer price
+        - Spreading fixed prices across months
+        - Revenue per month
+        - Plan vs. actual variance
+        - Margin
+      outputs:
+        - docs/specification/calculation-forecast.md
+    reviewers:
       - agent: tester
-        mode: review
         task: Check that every formula is unambiguous and testable.
         focus:
           - Rounding
           - Month boundaries
           - Zero and boundary values
       - agent: product-manager
-        mode: review
         task: Check that the calculation rules cover the requirements completely and add no extra scope.
     acceptance:
       - Every formula has an example with concrete numbers and a result.
@@ -137,27 +133,25 @@ phases:
     inputs:
       - docs/input/produktvision.md
       - docs/specification/requirements.md
-    participants:
-      - agent: billing
-        mode: build
-        task: Describe the rules for billable time, hourly rate validity, billing against fixed-price budgets and month-end closing, each with examples.
-        focus:
-          - Directly billable
-          - Fixed-price budget consumption
-          - Budget overrun
-          - Rate change on a cutoff date
-          - Lock after month-end closing
-        outputs:
-          - docs/specification/billing-rules.md
+    builder:
+      agent: billing
+      task: Describe the rules for billable time, hourly rate validity, billing against fixed-price budgets and month-end closing, each with examples.
+      focus:
+        - Directly billable
+        - Fixed-price budget consumption
+        - Budget overrun
+        - Rate change on a cutoff date
+        - Lock after month-end closing
+      outputs:
+        - docs/specification/billing-rules.md
+    reviewers:
       - agent: tester
-        mode: review
         task: Check that every rule is unambiguous and testable.
         focus:
           - Cutoff dates
           - Month boundaries
           - Corrections after closing
       - agent: controller
-        mode: review
         task: Check that the billing rules are consistent with the revenue metrics and the forecast.
     acceptance:
       - Every rule has at least one example with a result.
@@ -169,27 +163,25 @@ phases:
       - requirements
     inputs:
       - docs/specification/requirements.md
-    participants:
-      - agent: ux-dataviz
-        mode: build
-        task: Describe every page with its purpose, content, filters and states, and choose the chart types for the dashboard.
-        focus:
-          - Time tracking week view
-          - Offer editor
-          - Forecast entry
-          - Monthly dashboard
-          - Plan vs. actual over time
-        outputs:
-          - docs/ux/views.md
+    builder:
+      agent: ux-dataviz
+      task: Describe every page with its purpose, content, filters and states, and choose the chart types for the dashboard.
+      focus:
+        - Time tracking week view
+        - Offer editor
+        - Forecast entry
+        - Monthly dashboard
+        - Plan vs. actual over time
+      outputs:
+        - docs/ux/views.md
+    reviewers:
       - agent: consultant-user
-        mode: review
         task: Walk through daily time booking and preparing an offer using the views.
         focus:
           - Click paths
           - Keyboard use
           - Time spent
       - agent: controller
-        mode: review
         task: Check that the dashboard shows the metrics correctly and not misleadingly.
     acceptance:
       - Every requirement with a user interface is assigned to a view.
@@ -201,20 +193,19 @@ phases:
       - requirements
     inputs:
       - docs/specification/requirements.md
-    participants:
-      - agent: privacy-security
-        mode: build
-        task: Define the security and privacy requirements with IDs. There are no users and no roles, only a single shared password read from a file on the server.
-        focus:
-          - Storing and checking the password
-          - Sessions and logout
-          - Brute-force protection
-          - Protecting confidential figures in transit and in backups
-          - OWASP Top 10
-        outputs:
-          - docs/specification/security.md
+    builder:
+      agent: privacy-security
+      task: Define the security and privacy requirements with IDs. There are no users and no roles, only a single shared password read from a file on the server.
+      focus:
+        - Storing and checking the password
+        - Sessions and logout
+        - Brute-force protection
+        - Protecting confidential figures in transit and in backups
+        - OWASP Top 10
+      outputs:
+        - docs/specification/security.md
+    reviewers:
       - agent: product-manager
-        mode: review
         task: Check that the security requirements fit the product vision and block no feature. Users and roles are not part of the MVP.
     acceptance:
       - Every security requirement has an ID and is testable.
@@ -230,26 +221,27 @@ phases:
       - docs/specification/calculation-forecast.md
       - docs/specification/billing-rules.md
       - docs/specification/security.md
-    participants:
-      - agent: database-expert
-        mode: build
-        task: Design tables, types, constraints and indexes, and enforce the business rules in the database wherever possible.
-        focus:
-          - numeric for money
-          - Hourly rate history
-          - Locking closed months
-          - Aggregation per month
-        outputs:
-          - docs/architecture/data-model.md
-        consultWith:
-          - billing
-          - controller
+    builder:
+      agent: database-expert
+      task: Design tables, types, constraints and indexes, and enforce the business rules in the database wherever possible.
+      focus:
+        - numeric for money
+        - Hourly rate history
+        - Locking closed months
+        - Aggregation per month
+      outputs:
+        - docs/architecture/data-model.md
+    reviewers:
       - agent: billing
-        mode: review
         task: Check that every billing rule can be represented in the data model.
       - agent: controller
-        mode: review
         task: Check that all metrics and the forecast can be calculated from the data model.
+    # The data model builder asks these roles first when a business rule is unclear.
+    consultants:
+      - agent: billing
+        about: Billable time, rate validity and month-end closing
+      - agent: controller
+        about: Formulas, rounding and metrics
     acceptance:
       - Every business rule can be represented in the model; rules not enforced in the database are listed.
       - Money amounts and hours use exact data types.
@@ -263,29 +255,28 @@ phases:
       - docs/specification/
       - docs/ux/views.md
       - docs/architecture/data-model.md
-    participants:
-      - agent: software-architect
-        mode: build
-        task: Define modules, API, data flows and directory structure, and split the implementation into work packages.
-        focus:
-          - One container for frontend and backend
-          - Central calculation logic with tests
-          - Work packages without shared files
-        outputs:
-          - docs/architecture/architecture.md
-          - docs/work-packages.yaml
-        consultWith:
-          - devops
-          - privacy-security
+    builder:
+      agent: software-architect
+      task: Define modules, API, data flows and directory structure, and split the implementation into work packages.
+      focus:
+        - One container for frontend and backend
+        - Central calculation logic with tests
+        - Work packages without shared files
+      outputs:
+        - docs/architecture/architecture.md
+        - docs/work-packages.yaml
+    reviewers:
       - agent: devops
-        mode: review
         task: Check that the architecture can run as one container plus PostgreSQL via docker compose.
       - agent: privacy-security
-        mode: review
         task: Check that every security requirement is assigned to a place in the architecture.
       - agent: tester
-        mode: review
         task: Check that the modules can be tested separately and every work package has a verifiable result.
+    consultants:
+      - agent: devops
+        about: Container, deployment and CI
+      - agent: privacy-security
+        about: Authentication, secrets and personal data
     acceptance:
       - Every work package in docs/work-packages.yaml has id, type (backend, frontend, database), description, requirement IDs, files or directories, and dependsOn.
       - No two work packages that can run in parallel change the same files.
@@ -297,24 +288,22 @@ phases:
       - billing-rules
     inputs:
       - docs/specification/
-    participants:
-      - agent: tester
-        mode: build
-        task: Write the test strategy and test cases linked to the requirement IDs; turn every worked calculation example into a test case.
-        focus:
-          - Rounding
-          - Month boundaries
-          - Leap year
-          - Time zones
-          - Budget overrun
-          - Login
-        outputs:
-          - docs/test/test-concept.md
+    builder:
+      agent: tester
+      task: Write the test strategy and test cases linked to the requirement IDs; turn every worked calculation example into a test case.
+      focus:
+        - Rounding
+        - Month boundaries
+        - Leap year
+        - Time zones
+        - Budget overrun
+        - Login
+      outputs:
+        - docs/test/test-concept.md
+    reviewers:
       - agent: controller
-        mode: review
         task: Check the expected results of the calculation test cases.
       - agent: billing
-        mode: review
         task: Check the expected results of the billing test cases.
     acceptance:
       - Every requirement has at least one test case.
@@ -326,24 +315,22 @@ phases:
     inputs:
       - docs/architecture/architecture.md
     code: true
-    participants:
-      - agent: devops
-        mode: build
-        task: Set up the project scaffold, a multi-stage Dockerfile, docker-compose.yml with PostgreSQL, npm run check, a pre-commit hook and CI.
-        focus:
-          - docker compose up with no further steps
-          - Migrations on startup
-          - No secrets in the repo
-        outputs:
-          - Dockerfile
-          - docker-compose.yml
-          - package.json
-          - .github/workflows/ci.yml
+    builder:
+      agent: devops
+      task: Set up the project scaffold, a multi-stage Dockerfile, docker-compose.yml with PostgreSQL, npm run check, a pre-commit hook and CI.
+      focus:
+        - docker compose up with no further steps
+        - Migrations on startup
+        - No secrets in the repo
+      outputs:
+        - Dockerfile
+        - docker-compose.yml
+        - package.json
+        - .github/workflows/ci.yml
+    reviewers:
       - agent: software-architect
-        mode: review
         task: Check that the scaffold and directory structure match the architecture.
       - agent: privacy-security
-        mode: review
         task: Check configuration and container for secrets and insecure defaults.
     acceptance:
       - docker compose up starts the app and the database, and the healthcheck is green.
@@ -391,26 +378,21 @@ phases:
       - docs/input/produktvision.md
       - docs/specification/
       - docs/test/test-concept.md
-    participants:
-      - agent: tester
-        mode: build
-        task: Start the application with docker compose, run all test cases from the test concept and document the result per requirement.
-        outputs:
-          - docs/test/test-report.md
+    builder:
+      agent: tester
+      task: Start the application with docker compose, run all test cases from the test concept and document the result per requirement.
+      outputs:
+        - docs/test/test-report.md
+    reviewers:
       - agent: product-manager
-        mode: review
         task: Check that every requirement is met.
       - agent: controller
-        mode: review
         task: Recalculate the monthly report for a sample month by hand.
       - agent: billing
-        mode: review
         task: Use sample bookings to check that billable values and budget consumption are correct.
       - agent: consultant-user
-        mode: review
         task: Book a full work week through the user interface and assess how well it works in everyday use.
       - agent: project-manager
-        mode: review
         task: Check the success criteria of the product vision and approve or reject the MVP.
     acceptance:
       - All success criteria of the product vision are met.

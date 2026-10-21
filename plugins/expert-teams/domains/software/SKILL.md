@@ -36,6 +36,7 @@ When looking for open points, also check: what "finished" means for the code (te
 - A typical order: requirements, then domain rules and user flows in parallel, then data model and architecture, then infrastructure, implementation and acceptance. Leave out what the project does not need.
 - Phases that change code get `code: true`, so `rules.preCommit` runs before every commit in them.
 - Many similar implementation tasks go into one phase with `workPackages`. The architecture phase produces the package list (`from`, a YAML file). Usual package types: `backend`, `frontend`, `database`; add others where the project has them (e.g. `calculation`, `infrastructure`). Every type needs a builder and reviewers.
+- One builder per phase. A result that needs two specialists (e.g. architecture and views) becomes two phases; the other specialist reviews or consults.
 - Acceptance criteria name a command and its expected result where possible (`npm test passes`), not only a description.
 
 ## Build and review

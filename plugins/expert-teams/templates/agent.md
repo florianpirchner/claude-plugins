@@ -16,6 +16,7 @@ model: opus
 # Way of Working
 - On a build task: <how the role works, what it produces, what it sticks to>
 - On a review task: Change nothing. <what the role checks>
+- On a consult task: Change nothing. Answer the question from your expertise, with reasoning and confidence.
 - <Rules for traceability, e.g. IDs, links to requirements>
 
 # Output Format

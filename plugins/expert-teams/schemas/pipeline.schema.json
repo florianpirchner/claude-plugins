@@ -2,13 +2,17 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "expert-teams/pipeline.schema.json",
   "title": "Pipeline",
-  "description": "A builder/challenger pipeline in .claude/expert-teams/pipelines/<name>.yaml. Each phase is built by its build roles and checked by its review roles.",
+  "description": "A builder/challenger pipeline in .claude/expert-teams/pipelines/<name>.yaml. Each phase has exactly one builder, its reviewers check the results, and its consultants answer questions that come up.",
   "type": "object",
   "required": ["schemaVersion", "name", "description", "rules", "phases"],
   "additionalProperties": false,
   "properties": {
     "$schema": { "type": "string" },
-    "schemaVersion": { "type": "integer", "enum": [1] },
+    "schemaVersion": {
+      "type": "integer",
+      "enum": [2],
+      "description": "2 since expert-teams 0.15.0: one builder, reviewers and consultants per phase. Version 1 had one participants list with modes; /expert-teams:migrate converts it."
+    },
     "name": { "$ref": "#/$defs/slug", "description": "Must match the file name without .json." },
     "description": { "type": "string", "minLength": 1 },
     "domains": {
@@ -50,11 +54,6 @@
       "type": "string",
       "enum": ["autonomous", "as-needed", "always"],
       "description": "Who answers consult questions and settles stalemates. autonomous: the agents and the orchestrator settle everything and record their assumptions. as-needed (default): the agents settle everything except the cases in rules.askHumanWhen, which go to the user. always: every consult question and every stalemate goes to the user."
-    },
-    "slugs": {
-      "type": "array",
-      "uniqueItems": true,
-      "items": { "$ref": "#/$defs/slug" }
     },
     "paths": {
       "type": "array",
@@ -146,22 +145,45 @@
         }
       }
     },
-    "participant": {
+    "builder": {
       "type": "object",
-      "required": ["agent", "mode", "task"],
+      "description": "The one role that creates the results of the phase.",
+      "required": ["agent", "task", "outputs"],
       "additionalProperties": false,
       "properties": {
         "agent": { "$ref": "#/$defs/slug", "description": "Name of an agent file in .claude/agents/." },
-        "mode": { "type": "string", "enum": ["build", "review"] },
         "task": { "type": "string", "minLength": 1 },
         "focus": { "$ref": "#/$defs/texts" },
         "outputs": {
-          "description": "Required for build: the files the role creates.",
-          "$ref": "#/$defs/paths"
-        },
-        "consultWith": {
-          "description": "Roles the orchestrator asks first when this role has a consult question. Without it the orchestrator picks a fitting role of the pipeline.",
-          "$ref": "#/$defs/slugs"
+          "description": "The files the builder creates.",
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "reviewer": {
+      "type": "object",
+      "description": "A role that checks the builder's results. It does not change files.",
+      "required": ["agent", "task"],
+      "additionalProperties": false,
+      "properties": {
+        "agent": { "$ref": "#/$defs/slug", "description": "Name of an agent file in .claude/agents/." },
+        "task": { "type": "string", "minLength": 1 },
+        "focus": { "$ref": "#/$defs/texts" }
+      }
+    },
+    "consultant": {
+      "type": "object",
+      "description": "A role the orchestrator asks first when the builder or a reviewer of the phase has a consult question. It neither builds nor reviews.",
+      "required": ["agent"],
+      "additionalProperties": false,
+      "properties": {
+        "agent": { "$ref": "#/$defs/slug", "description": "Name of an agent file in .claude/agents/." },
+        "about": {
+          "type": "string",
+          "minLength": 1,
+          "description": "What to ask this role, e.g. tax and invoicing rules. Helps the orchestrator pick the right consultant."
         }
       }
     },
@@ -213,9 +235,20 @@
           "$ref": "#/$defs/humanInTheLoop",
           "description": "Overrides rules.humanInTheLoop for this phase."
         },
-        "participants": {
+        "builder": {
+          "$ref": "#/$defs/builder",
+          "description": "Exactly one builder. Required unless the phase has workPackages, which name one builder per package type."
+        },
+        "reviewers": {
+          "description": "Required unless the phase has workPackages.",
           "type": "array",
-          "items": { "$ref": "#/$defs/participant" }
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/reviewer" }
+        },
+        "consultants": {
+          "description": "Optional. Without it the orchestrator picks a fitting role of the pipeline for a consult question. Work packages use the consultants of their phase.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/consultant" }
         },
         "workPackages": { "$ref": "#/$defs/workPackages" },
         "acceptance": {

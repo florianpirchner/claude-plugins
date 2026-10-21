@@ -28,14 +28,24 @@ test("the example is valid", () => {
   assert.deepEqual(r.warnings, []);
 });
 
-test("unknown field and wrong mode are detected", () => {
+test("unknown fields and a builder list are detected", () => {
   const p = clone();
   p.phases[0].foo = 1;
-  p.phases[0].participants[0].mode = "reviw";
+  p.phases[0].reviewers[0].outputs = ["x.md"];
+  p.phases[1].builder = [p.phases[1].builder, p.phases[0].builder];
   const r = check(project(p));
   assert.equal(r.ok, false);
   assert.ok(r.errors.some((e) => e.includes('unknown field "foo"')));
-  assert.ok(r.errors.some((e) => e.includes('"reviw" is not allowed')));
+  assert.ok(r.errors.some((e) => e.includes('reviewers[0]: unknown field "outputs"')));
+  assert.ok(r.errors.some((e) => e.includes("phases[1].builder: expected object, found array")));
+});
+
+test("a pipeline of schemaVersion 1 is sent to the migration", () => {
+  const p = clone();
+  p.schemaVersion = 1;
+  const r = check(project(p));
+  assert.equal(r.ok, false);
+  assert.ok(r.errors[0].includes("/expert-teams:migrate"));
 });
 
 test("unknown dependency and cycle are detected", () => {
@@ -47,12 +57,39 @@ test("unknown dependency and cycle are detected", () => {
   assert.ok(r.errors.some((e) => e.startsWith("Cycle")));
 });
 
-test("missing agent file and missing reviewer are detected", () => {
+test("missing agent file, builder and reviewers are detected", () => {
   const p = clone();
-  p.phases[0].participants = [{ agent: "does-not-exist", mode: "build", task: "x", outputs: ["a.md"] }];
+  p.phases[0].builder = { agent: "does-not-exist", task: "x", outputs: ["a.md"] };
+  delete p.phases[0].reviewers;
+  delete p.phases[1].builder;
   const r = check(project(p));
   assert.ok(r.errors.some((e) => e.includes('Agent "does-not-exist"')));
-  assert.ok(r.errors.some((e) => e.includes("mode review")));
+  assert.ok(r.errors.some((e) => e.includes('Phase "requirements" needs at least one reviewer')));
+  assert.ok(r.errors.some((e) => e.includes('Phase "calculation-forecast" needs a builder')));
+});
+
+test("the builder cannot review or consult itself, roles are not listed twice", () => {
+  const p = clone();
+  const phase = p.phases[0];
+  phase.reviewers.push({ agent: phase.builder.agent, task: "x" }, { ...phase.reviewers[0] });
+  phase.consultants = [{ agent: phase.builder.agent }, { agent: "controller" }, { agent: "controller" }];
+  const r = check(project(p));
+  assert.ok(r.errors.some((e) => e.includes("cannot review its own results")));
+  assert.ok(r.errors.some((e) => e.includes("cannot be its own consultant")));
+  assert.ok(r.errors.some((e) => e.includes(`reviewer "${phase.reviewers[0].agent}" is listed twice`)));
+  assert.ok(r.errors.some((e) => e.includes('consultant "controller" is listed twice')));
+});
+
+test("a phase with work packages takes no builder or reviewers of its own", () => {
+  const p = clone();
+  const wp = p.phases.find((x) => x.workPackages);
+  wp.builder = { agent: "tester", task: "x", outputs: ["a.md"] };
+  wp.reviewers = [{ agent: "controller", task: "x" }];
+  wp.consultants = [{ agent: "controller", about: "Formulas" }];
+  const r = check(project(p));
+  assert.ok(r.errors.some((e) => e.includes("remove builder")));
+  assert.ok(r.errors.some((e) => e.includes("remove reviewers")));
+  assert.equal(r.errors.length, 2, JSON.stringify(r.errors));
 });
 
 test("name and file name must match", () => {
@@ -91,13 +128,14 @@ test("human in the loop: invalid level is rejected, inconsistent settings warn",
   assert.equal(check(project(t)).ok, true);
 });
 
-test("consultWith must name existing agents other than the role itself", () => {
+test("consultants must name existing agents and warn when consult is off", () => {
   const p = clone();
-  const builder = p.phases[0].participants.find((x) => x.mode === "build");
-  builder.consultWith = [builder.agent, "nobody"];
-  const r = check(project(p));
-  assert.ok(r.errors.some((e) => e.includes("lists itself in consultWith")));
-  assert.ok(r.errors.some((e) => e.includes('Agent "nobody"')));
+  p.phases[0].consultants = [{ agent: "nobody" }];
+  assert.ok(check(project(p)).errors.some((e) => e.includes('Agent "nobody"')));
+
+  const q = clone();
+  q.rules.consult = { ...q.rules.consult, enabled: false };
+  assert.ok(check(project(q)).warnings.some((w) => w.includes("has consultants, but rules.consult.enabled is false")));
 });
 
 test("args accepts only exact names, status or a phase, plus one human-in-the-loop flag", () => {

@@ -37,7 +37,7 @@ Below, `<name>` is the checked name and `P` is the file `.claude/expert-teams/pi
    ```
    node <plugin>/scripts/validate.mjs pipeline <name>
    ```
-   On `"ok": false` start nothing, show all `errors` and stop. Do not repair the file yourself. Show `warnings` once and continue.
+   On `"ok": false` start nothing, show all `errors` and stop. Do not repair the file yourself. If the error names schemaVersion 1, point to `/expert-teams:migrate`. Show `warnings` once and continue.
 
    `target` in the output is the branch the phases are merged into (below `<target>`): `rules.integrationBranch`, by default `expert-teams/<name>`. With `integrationBranch: none` it is `<base>` and the phases go straight into it.
 
@@ -90,7 +90,9 @@ Repeat until accepted, at most `rules.maxRounds` times:
 
 **Languages.** `<code>`, `<docs>` and `<ui>` below are `rules.language.code`, `.docs` and `.ui`, each `en` if not set. Your own commit messages, branch names and pull request texts follow `<code>`.
 
-**a) Build or revise.** Start every role with `mode: build` via the Agent tool (`subagent_type` = value of `agent`, `model` = build model) with this task:
+Every phase has exactly one `builder`, one or more `reviewers` and optional `consultants`. `<task>`, `<focus>` and `<outputs>` below are the fields of the builder or of the reviewer you start.
+
+**a) Build or revise.** Start the `builder` via the Agent tool (`subagent_type` = value of `builder.agent`, `model` = build model) with this task:
 
 ```
 Working directory: <absolute path of wd>. Read and write only there; all paths are relative to it.
@@ -112,7 +114,7 @@ Languages: names that are not prose (identifiers, file and branch names, commit 
 [from round 2:] Findings of the last review: <all findings>. Fix all blocking and important findings. Briefly explain which ones you do not adopt.
 ```
 
-**b) Review.** Then start every role with `mode: review` (`model` = review model), all in parallel:
+**b) Review.** Then start every entry of `reviewers` (`model` = review model), all in parallel:
 
 ```
 Working directory: <absolute path of wd>. Read only there.
@@ -121,7 +123,7 @@ This is a review task. Do not change any files.
 Phase goal: <goal>
 Your review task: <task>
 Focus: <focus>
-To review: <outputs of the phase>
+To review: <outputs of the builder>
 Background (read): <inputs of the pipeline and the phase>
 Acceptance criteria of the phase: <acceptance>
 Languages: names that are not prose (identifiers, file and branch names, commit messages) in <code>. Documents in <docs>. Texts the final audience sees in <ui>. Text in the wrong language is a blocking finding.
@@ -154,7 +156,7 @@ A role whose reply ends with a `CONSULT` block has not finished yet. Handle it a
 
 Checkpoints never reach `<target>` on their own: delivery overwrites the file with `status: done`.
 
-**c) Evaluate.** The phase is accepted when every review role reports "accepted" and no blocking finding is open. Otherwise start the next round with all findings.
+**c) Evaluate.** The phase is accepted when every reviewer reports "accepted" and no blocking finding is open. Otherwise start the next round with all findings.
 
 **d) Stalemate.** If something is still open after `maxRounds`, every open finding gets decided: adopt it (then one last build round just for that, without another review) or discard it. Who decides follows the phase's human-in-the-loop level (section 5): `always` puts all open findings to the user, `as-needed` puts the findings covered by `rules.askHumanWhen` to the user and you decide the rest, `autonomous` means you decide all of them. Write every decision with its reasoning and who made it to `docs/decisions/<name>/<phase-id>.md` in `<wd>`.
 
@@ -187,7 +189,7 @@ If `rules.consult.enabled` is `false`, add instead: `Settle open questions yours
 **When a role ends with `CONSULT`**, handle each question:
 
 1. **Who answers.** By the effective level: the user, or a role. With `as-needed` you judge whether the question falls under one of the cases in `rules.askHumanWhen`; if in doubt, it goes to the user.
-2. **A role answers.** Take the first suitable role from the asker's `consultWith`; without it, the agent of this pipeline whose description fits the question best, never the asker itself. Start it via the Agent tool (review model) with:
+2. **A role answers.** Take the phase's `consultants` first: the one whose `about` (or, without it, agent description) fits the question best. If none fits, the agent of this pipeline whose description fits best. Never the asker itself. Start it via the Agent tool (review model) with:
    ```
    Working directory: <absolute path of wd>. Read only there. Do not change any files.
    This is a consult task. Another role working on the phase goal "<goal>" asks:
@@ -205,7 +207,7 @@ If `rules.consult.enabled` is `false`, add instead: `Settle open questions yours
 
 If a phase has `workPackages`, read `workPackages.from` (on `<target>`) and treat every package like a small phase of its own:
 - Worktree `.claude/worktrees/<name>-<phase-id>-<package-id>` on branch `pipeline/<name>/<phase-id>-<package-id>` (without worktrees: one after another in the project directory).
-- Builder from `builderByType[type]`, reviewers from `reviewersByType[type]`, models as in step 4, tasks from `task` and `reviewTask` plus the package description, the requirement IDs and the allowed files. Consult questions and human in the loop work as in section 5.
+- Builder from `builderByType[type]`, reviewers from `reviewersByType[type]`, models as in step 4, tasks from `task` and `reviewTask` plus the package description, the requirement IDs and the allowed files. Consult questions and human in the loop work as in section 5, with the phase's `consultants`.
 - A package starts only when all packages in its `dependsOn` are delivered, and it builds on the current `<target>`. Packages without open dependencies run in parallel.
 - If a package has a `type` without a builder, stop and report.
 - Every package is delivered on its own (step 7). The phase is `done` when all packages are delivered and `rules.preCommit` (if set) succeeds on `<target>`.

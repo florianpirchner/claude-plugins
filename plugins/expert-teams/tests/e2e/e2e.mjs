@@ -17,11 +17,13 @@ import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, 
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { JSON_SCHEMA, load } from "../../scripts/vendor/js-yaml.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const PLUGIN = resolve(HERE, "..", "..");
 const NAME = "todo-api";
 const PHASES = ["requirements", "implementation", "acceptance"];
+const BUILDERS = { requirements: "product-manager", implementation: "backend-developer", acceptance: "tester" };
 
 const args = process.argv.slice(2);
 const opt = (flag, fallback) => (args.includes(flag) ? args[args.indexOf(flag) + 1] : fallback);
@@ -110,6 +112,12 @@ function checkCreate() {
   const v = script("validate.mjs", ["pipeline", NAME]);
   check("create: pipeline file is valid", v.ok, (v.errors ?? []).join("; "));
   check("create: the three scripted phases", JSON.stringify(v.phases) === JSON.stringify(PHASES), JSON.stringify(v.phases));
+  let pipeline = null;
+  try {
+    pipeline = load(readFileSync(join(project, ".claude", "expert-teams", "pipelines", `${NAME}.yaml`), "utf8"), { schema: JSON_SCHEMA });
+  } catch {}
+  const builders = Object.fromEntries((pipeline?.phases ?? []).map((p) => [p.id, p.builder?.agent ?? null]));
+  check("create: one builder per phase as scripted", JSON.stringify(builders) === JSON.stringify(BUILDERS), JSON.stringify(builders));
   check("create: domain pack software chosen", JSON.stringify(v.domains) === JSON.stringify(["software"]) && !(v.warnings ?? []).some((w) => w.startsWith("domains")), JSON.stringify(v.domains));
   for (const agent of ["product-manager", "backend-developer", "tester"]) {
     check(`create: agent ${agent}`, existsSync(join(project, ".claude", "agents", `${agent}.md`)));
