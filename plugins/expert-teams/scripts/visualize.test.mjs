@@ -61,6 +61,8 @@ test("README.md has a top-down Mermaid chart with builders, states and reviewers
   assert.ok(md.includes("  p0 --> p1"));
   assert.ok(md.includes("- **billing-rules** (waiting for you): reviewers tester, controller. Question: Bill travel time?"));
   assert.ok(md.includes("State: 1 done, 1 running, 1 waiting for you, 2 startable, 6 open."));
+  assert.ok(md.includes("- **data-model** (open): reviewers billing, controller; consultants billing, controller."));
+  assert.ok(md.includes("## Reviewers, consultants and state"));
 });
 
 test("pipeline.html is self-contained and carries the details", () => {
@@ -71,6 +73,8 @@ test("pipeline.html is self-contained and carries the details", () => {
   assert.ok(!/<script[^>]+src=|<link[^>]+href=/.test(html), "no external resources");
   assert.ok(html.includes("<h2>Wave 1</h2>"));
   assert.ok(html.includes("Every rule has at least one example with a result."));
+  assert.ok(html.includes('"consultants":[{"agent":"devops","about":"Container, deployment and CI"}'));
+  assert.ok(html.includes("<h4>Builder</h4>"));
 });
 
 test("text from the pipeline cannot break the chart or the page", () => {

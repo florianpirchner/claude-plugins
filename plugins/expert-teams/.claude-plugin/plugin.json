@@ -1,6 +1,6 @@
 {
   "name": "expert-teams",
-  "version": "0.14.0",
+  "version": "0.15.0",
   "description": "Guided design, change and execution of builder/challenger pipelines with subagents, consult questions and a configurable human in the loop, for software, marketing, research, docs and text-to-speech audio through domain packs: /expert-teams:create, /expert-teams:modify, /expert-teams:run, /expert-teams:status, /expert-teams:migrate.",
   "author": {
     "name": "Flo"

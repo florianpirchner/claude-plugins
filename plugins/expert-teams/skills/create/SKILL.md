@@ -133,14 +133,15 @@ Goal: settle the roles.
 
 Goal: settle phases, pairs and order.
 
-1. Read the `Flow` sections of the packs again for the typical order, work package types and what good acceptance criteria look like in that field. Propose the phases as a table: phase, goal, depends on, builders, reviewers, result files, and where it helps, who builders consult (`consultWith`). Then show the flow as a simple sequence or waves, e.g. "Wave 1: requirements. Wave 2: views, data-model (parallel)".
+1. Read the `Flow` sections of the packs again for the typical order, work package types and what good acceptance criteria look like in that field. Propose the phases as a table: phase, goal, depends on, builder, reviewers, consultants, result files. Then show the flow as a simple sequence or waves, e.g. "Wave 1: requirements. Wave 2: views, data-model (parallel)".
 2. Guidelines:
-   - Every phase has a clear result (files in `outputs`) and checkable `acceptance` criteria. Name output files after their content (`acceptance.md`, `test-concept.md`), not `report.md`, `summary.md` or `findings.md`: Claude Code may block subagents from writing files named like reports.
+   - Every phase has exactly one `builder`, one or more `reviewers` and optional `consultants`. If a result needs two builders (e.g. positioning and voice guide), make two phases; the second can depend on the first, and the other expert reviews or consults. The builder never reviews or consults on its own phase.
+   - Every phase has a clear result (the builder's `outputs`) and checkable `acceptance` criteria. Name output files after their content (`acceptance.md`, `test-concept.md`), not `report.md`, `summary.md` or `findings.md`: Claude Code may block subagents from writing files named like reports.
    - Phases without mutual dependencies run in parallel.
    - Phases in which `rules.preCommit` must run before every commit get `code: true`.
    - Many similar tasks go into one phase with `workPackages`. An earlier phase then produces the package list (`from`), e.g. the architecture or a content plan. Package types are free names; every type used needs a builder and reviewers.
    - Reviewers get concrete review tasks, not "check everything".
-   - `consultWith` names roles with the expertise the builder is likely to lack. Without it the orchestrator picks a fitting role.
+   - `consultants` names roles with the expertise the builder or the reviewers are likely to lack, each with a short `about` (what to ask them). They neither build nor review; they only answer consult questions. Without them the orchestrator picks a fitting role.
    - A phase gets its own `humanInTheLoop` only if it really should differ from the pipeline's, e.g. `always` for a phase that sets prices.
 3. Discuss until the user is happy. Record the phases in the format of `phases` from the pipeline schema in `flow.phases`.
 4. Only after confirmation: `flow.confirmed = true`, `stage = "generate"`.
@@ -149,7 +150,7 @@ Goal: settle phases, pairs and order.
 
 1. **Name.** If `name` is not settled yet, propose one from the goal (e.g. `optimize-performance`) and ask for confirmation. Check it with `node <plugin>/scripts/validate.mjs new-name <name>` and ask for another one on errors. Record it in the draft.
 2. **Agents.** For every role with source `new` or `example`, create the file `.claude/agents/<agent>.md` from the template `<plugin>/templates/agent.md` (for an example role, start from the pack's file). Every file is self-contained and mentions no other agents. `model: opus`, unless the user explicitly set something else for the role. If the file already exists, do not overwrite it, ask.
-3. **Pipeline.** Write `.claude/expert-teams/pipelines/<name>.yaml` with `schemaVersion: 1`, `name`, `description`, `domains` (the confirmed packs; `[]` if none), `inputs`, `rules` from stages 1 and 2 and `phases` from the flow. `inputs` contains the files the packs had you write in stage 2. Put the build and review lines from the packs' `Build and review` sections into the phases' tasks only where a phase needs more than these lines; `/expert-teams:run` adds them to every task by itself. Add a short `#` comment wherever a choice is not obvious, e.g. why a phase has its own `humanInTheLoop` or why a rule exists. Validate it:
+3. **Pipeline.** Write `.claude/expert-teams/pipelines/<name>.yaml` with `schemaVersion: 2`, `name`, `description`, `domains` (the confirmed packs; `[]` if none), `inputs`, `rules` from stages 1 and 2 and `phases` from the flow. `inputs` contains the files the packs had you write in stage 2. Put the build and review lines from the packs' `Build and review` sections into the phases' tasks only where a phase needs more than these lines; `/expert-teams:run` adds them to every task by itself. Add a short `#` comment wherever a choice is not obvious, e.g. why a phase has its own `humanInTheLoop` or why a rule exists. Validate it:
    ```
    node <plugin>/scripts/validate.mjs pipeline <name>
    ```

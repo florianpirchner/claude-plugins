@@ -31,7 +31,7 @@ When looking for open points, also check: criteria for comparing options that no
 
 ## Team
 
-- Example roles: `<pack>/agents/`: `researcher` (searches, reads, writes findings with sources) and `fact-checker` (checks every claim against its source, looks for contrary evidence). For a decision add a role of the field as second reviewer (e.g. `software-architect` for a technology choice, `controller` for numbers).
+- Example roles: `<pack>/agents/`: `researcher` (searches, reads, writes findings with sources) and `fact-checker` (checks every claim against its source, looks for contrary evidence). For a decision add a role of the field as second reviewer or as consultant (e.g. `software-architect` for a technology choice, `controller` for numbers).
 - Researcher and fact-checker are different roles; the fact-checker never reviews its own text.
 
 ## Flow

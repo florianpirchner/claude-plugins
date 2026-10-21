@@ -41,9 +41,9 @@ Argument: `$ARGUMENTS`
 2. If `.claude/expert-teams/drafts/modify-<name>.yaml` exists with `stage` other than `done`, summarize in three to five sentences where you stand and continue in its `stage`. If the pipeline file changed since `updatedAt` (`git log -1 --format=%cI -- .claude/expert-teams/pipelines/<name>.yaml`), say so and compare the draft with the current file before you continue.
 3. Otherwise create the draft: `kind: "modify"`, `name: <name>`, `stage: "brainstorming"`, `changes: []`, `domains.selected` = the pipeline's `domains` (from the validate output) with `confirmed: true`, `brainstorming.rules` = the current `rules`, `team.roles` = every agent the pipeline uses with `source: "existing"` and its `description` as `purpose`, `flow.phases` = the current `phases`.
 4. Get the state:
-   - `node <plugin>/scripts/validate.mjs pipeline <name>`. Show `errors` and `warnings`; fixing them can be part of the change. Remember `done` and `domains`, and read those packs.
+   - `node <plugin>/scripts/validate.mjs pipeline <name>`. If the error says the pipeline uses schemaVersion 1, stop and suggest `/expert-teams:migrate` first. Otherwise show `errors` and `warnings`; fixing them can be part of the change. Remember `done` and `domains`, and read those packs.
    - A run is in progress if `.claude/worktrees/<name>-*` exists or branches `pipeline/<name>/*` exist (`git branch --list 'pipeline/<name>/*'`). Then tell the user that running phases keep their old task until they are restarted, and recommend finishing or cancelling the run first.
-5. Show the current pipeline briefly: goal, roles, phases as a table (phase, depends on, builders, reviewers, status) and the main rules.
+5. Show the current pipeline briefly: goal, roles, phases as a table (phase, depends on, builder, reviewers, consultants, status) and the main rules.
 
 ## Stage 1: Brainstorming
 
@@ -68,18 +68,19 @@ Only after confirmation: `grillMe.confirmed = true`, `stage = "team"`.
 ## Stage 3: Team
 
 1. Start from `team.roles`. Propose additions, removals and changed purposes as a table: role, what for, change (`keep`, `add`, `remove`, `change`), source.
-2. For a role to remove, list the phases it takes part in. They must get another builder or reviewer in stage 4, or go away.
+2. For a role to remove, list the phases it takes part in. They must get another builder, reviewer or consultant in stage 4, or go away.
 3. Existing agent files are changed only with the user's consent. A changed agent file affects every pipeline that uses it: check `.claude/expert-teams/pipelines/*.yaml` and name the other pipelines.
 4. Record every change in `team.roles` and `changes`. Only after confirmation: `team.confirmed = true`, `stage = "flow"`. If nothing changes in the team, the user can confirm this stage right away.
 
 ## Stage 4: Flow
 
-1. Start from `flow.phases`. Propose the changed phases as a table: phase, change (`keep`, `add`, `remove`, `change`), goal, depends on, builders, reviewers, result files. Then show the new order as waves.
+1. Start from `flow.phases`. Propose the changed phases as a table: phase, change (`keep`, `add`, `remove`, `change`), goal, depends on, builder, reviewers, consultants, result files. Then show the new order as waves.
 2. Watch the consequences:
    - **Done phases** (from `done`): changing them does not run them again. Ask per changed done phase whether it stays done or is reopened. Reopening means its status file `docs/pipeline-status/<name>/<phase-id>.yaml` is deleted in stage 5, so the next run builds it again on top of its earlier result.
    - **Removed phases:** every `dependsOn` that names them must be changed. Their status files are deleted in stage 5, otherwise validation fails. Their files in `docs/decisions/<name>/` stay as history.
    - **Renamed phase ids:** treat as remove plus add. A done phase keeps its state only if the status file is renamed along with it and its `phase` field is updated; ask the user.
    - **New phases** that depend on done phases are startable right away after the change.
+   - **One builder per phase.** If the user wants a second builder in a phase, propose a second phase instead (it can depend on the first); the other expert can review or consult in both.
 3. Record the phases in `flow.phases` and every change in `changes`. Only after confirmation: `flow.confirmed = true`, `stage = "generate"`.
 
 ## Stage 5: Generate

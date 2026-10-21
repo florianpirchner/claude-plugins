@@ -1,7 +1,7 @@
 # Example pipeline of the expert-teams plugin without any code: the marketing launch of a small
 # time-tracking tool for agencies. Uses the marketing domain pack; roles in domains/marketing/agents/.
 # Schema: schemas/pipeline.schema.json
-schemaVersion: 1
+schemaVersion: 2
 name: product-launch
 description: 'Example: launch campaign for a time-tracking tool for small agencies, from audience research to ready-to-approve content.'
 domains:
@@ -40,14 +40,13 @@ phases:
   - id: research
     goal: Describe the audience, its problems and the alternatives it uses today.
     dependsOn: []
-    participants:
-      - agent: marketing-strategist
-        mode: build
-        task: Describe the primary audience (agencies with 3 to 20 people), their jobs, triggers and objections, and the alternatives they use today, from the inputs only.
-        outputs:
-          - docs/marketing/audience.md
+    builder:
+      agent: marketing-strategist
+      task: Describe the primary audience (agencies with 3 to 20 people), their jobs, triggers and objections, and the alternatives they use today, from the inputs only.
+      outputs:
+        - docs/marketing/audience.md
+    reviewers:
       - agent: marketing-analyst
-        mode: review
         task: Check that every number has a source in the inputs or is marked as an estimate.
     acceptance:
       - One primary audience with problems, triggers and objections.
@@ -58,36 +57,47 @@ phases:
       - research
     # New brand voice: every open question goes to the user in this phase.
     humanInTheLoop: always
-    participants:
-      - agent: marketing-strategist
-        mode: build
-        task: Write the positioning statement, the value proposition and three core messages with proof points from the inputs.
-        outputs:
-          - docs/marketing/positioning.md
-      - agent: copywriter
-        mode: build
-        task: Write the voice guide (words to use and avoid, good and bad example sentences) from the brief, and check that the messages can be turned into copy the audience understands at first read.
-        outputs:
-          - docs/marketing/voice-guide.md
+    builder:
+      agent: marketing-strategist
+      task: Write the positioning statement, the value proposition and three core messages with proof points from the inputs.
+      outputs:
+        - docs/marketing/positioning.md
+    reviewers:
       - agent: brand-reviewer
-        mode: review
-        task: Check every proof point against the inputs and the voice guide against the brief.
+        task: Check every proof point against the inputs.
+      - agent: copywriter
+        task: Check that the messages can be turned into copy the audience understands at first read.
     acceptance:
       - Every core message has a proof point from the inputs.
+  - id: voice-guide
+    goal: Define the voice every content piece is written in.
+    dependsOn:
+      - positioning
+    builder:
+      agent: copywriter
+      task: Write the voice guide (words to use and avoid, good and bad example sentences) from the brief and the core messages.
+      outputs:
+        - docs/marketing/voice-guide.md
+    reviewers:
+      - agent: brand-reviewer
+        task: Check the voice guide against the brief and the positioning.
+    consultants:
+      - agent: marketing-strategist
+        about: Audience, positioning and what each message must achieve
+    acceptance:
       - The voice guide has at least five example sentences.
   - id: campaign-plan
     goal: Plan the launch campaign over six weeks with channels, timing and content pieces.
     dependsOn:
       - positioning
-    participants:
-      - agent: marketing-strategist
-        mode: build
-        task: Plan the campaign week by week and list every content piece as a work package (id, type, channel, message, call to action, dependsOn, file).
-        outputs:
-          - docs/marketing/campaign-plan.md
-          - docs/marketing/content-packages.yaml
+    builder:
+      agent: marketing-strategist
+      task: Plan the campaign week by week and list every content piece as a work package (id, type, channel, message, call to action, dependsOn, file).
+      outputs:
+        - docs/marketing/campaign-plan.md
+        - docs/marketing/content-packages.yaml
+    reviewers:
       - agent: marketing-analyst
-        mode: review
         task: Check that the plan fits the budget and the time in the brief and that every week moves the goal.
     acceptance:
       - Every content piece has a type, channel, message, call to action and target file.
@@ -96,6 +106,7 @@ phases:
     goal: Write every content piece of the campaign plan as a draft ready for approval.
     dependsOn:
       - campaign-plan
+      - voice-guide
     workPackages:
       from: docs/marketing/content-packages.yaml
       builderByType:
@@ -114,14 +125,13 @@ phases:
     goal: Define how the launch is measured.
     dependsOn:
       - campaign-plan
-    participants:
-      - agent: marketing-analyst
-        mode: build
-        task: Write the measurement plan with metric, source, target and date for every plan item, and the UTM scheme.
-        outputs:
-          - docs/marketing/measurement-plan.md
+    builder:
+      agent: marketing-analyst
+      task: Write the measurement plan with metric, source, target and date for every plan item, and the UTM scheme.
+      outputs:
+        - docs/marketing/measurement-plan.md
+    reviewers:
       - agent: marketing-strategist
-        mode: review
         task: Check that the metrics measure the goal of the brief and that the targets are reachable.
     acceptance:
       - Every campaign week has a metric with a target.
@@ -130,14 +140,13 @@ phases:
     dependsOn:
       - content
       - measurement-plan
-    participants:
-      - agent: brand-reviewer
-        mode: build
-        task: Write the launch checklist with every piece, its status, open risks and what the human must approve before publishing.
-        outputs:
-          - docs/marketing/launch-checklist.md
+    builder:
+      agent: brand-reviewer
+      task: Write the launch checklist with every piece, its status, open risks and what the human must approve before publishing.
+      outputs:
+        - docs/marketing/launch-checklist.md
+    reviewers:
       - agent: marketing-strategist
-        mode: review
         task: Check that the checklist covers every piece of the campaign plan and every risk raised in earlier phases.
     acceptance:
       - Every piece of the campaign plan is listed with its file and status.

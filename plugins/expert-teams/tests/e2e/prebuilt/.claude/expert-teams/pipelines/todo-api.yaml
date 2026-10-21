@@ -1,6 +1,6 @@
 # Pipeline of the end-to-end test, as /expert-teams:create should produce it from tests/e2e/answers.md.
 # Used by `node tests/e2e/e2e.mjs --stage run` to test the run without the create conversation.
-schemaVersion: 1
+schemaVersion: 2
 name: todo-api
 description: Tiny in-memory todo HTTP API, from requirements to acceptance.
 domains:
@@ -34,14 +34,13 @@ phases:
   - id: requirements
     goal: Turn the product vision into numbered, testable requirements.
     dependsOn: []
-    participants:
-      - agent: product-manager
-        mode: build
-        task: Write numbered requirements (REQ-1, REQ-2, ...) with acceptance criteria for every endpoint and rule of the product vision.
-        outputs:
-          - docs/specification/requirements.md
+    builder:
+      agent: product-manager
+      task: Write numbered requirements (REQ-1, REQ-2, ...) with acceptance criteria for every endpoint and rule of the product vision.
+      outputs:
+        - docs/specification/requirements.md
+    reviewers:
       - agent: tester
-        mode: review
         task: Check that every requirement is testable and that nothing from the vision is missing or added.
     acceptance:
       - Every endpoint and status code of the vision is covered by a requirement with acceptance criteria.
@@ -51,15 +50,14 @@ phases:
     dependsOn:
       - requirements
     code: true
-    participants:
-      - agent: backend-developer
-        mode: build
-        task: Implement src/server.js (exporting createServer()) with node:http only, and test/server.test.js with node:test covering every requirement.
-        outputs:
-          - src/server.js
-          - test/server.test.js
+    builder:
+      agent: backend-developer
+      task: Implement src/server.js (exporting createServer()) with node:http only, and test/server.test.js with node:test covering every requirement.
+      outputs:
+        - src/server.js
+        - test/server.test.js
+    reviewers:
       - agent: tester
-        mode: review
         task: Run npm test, check edge cases (empty title, unknown id, id reuse) and that every requirement has a test.
     acceptance:
       - npm test passes.
@@ -68,14 +66,13 @@ phases:
     goal: Confirm that the delivered API meets every requirement.
     dependsOn:
       - implementation
-    participants:
-      - agent: tester
-        mode: build
-        task: Run npm test and write a report listing each requirement, the test that covers it and its result.
-        outputs:
-          - docs/acceptance/acceptance.md
+    builder:
+      agent: tester
+      task: Run npm test and write a report listing each requirement, the test that covers it and its result.
+      outputs:
+        - docs/acceptance/acceptance.md
+    reviewers:
       - agent: product-manager
-        mode: review
         task: Check that the report covers every requirement and that the results support acceptance.
     acceptance:
       - Every requirement is listed with a passing test.

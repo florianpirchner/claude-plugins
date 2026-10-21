@@ -30,7 +30,7 @@ When looking for open points, also check: features the documentation must cover 
 
 ## Team
 
-- Example roles: `<pack>/agents/`: `technical-writer` (writes and structures) and `reader-reviewer` (reads as the target reader, follows every step, reports where they get stuck). For technical accuracy add an expert of the subject as second reviewer (e.g. `backend-developer` for API docs).
+- Example roles: `<pack>/agents/`: `technical-writer` (writes and structures) and `reader-reviewer` (reads as the target reader, follows every step, reports where they get stuck). For technical accuracy add an expert of the subject as second reviewer (e.g. `backend-developer` for API docs), or as consultant if the writer needs answers while writing.
 - Roles that run commands or the software to check steps need `Bash` in `tools`.
 
 ## Flow

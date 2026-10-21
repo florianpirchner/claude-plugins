@@ -17,6 +17,23 @@ function write(root, path, content) {
   writeFileSync(join(root, path), typeof content === "string" ? content : JSON.stringify(content, null, 2));
 }
 
+// The phases as expert-teams up to 0.14.0 wrote them: one participants list with modes, consultWith per role.
+function toVersion1(pipeline) {
+  pipeline.schemaVersion = 1;
+  pipeline.phases = pipeline.phases.map(({ builder, reviewers, consultants, ...rest }) => {
+    if (!builder) return rest;
+    const consultWith = consultants?.map((c) => c.agent);
+    const parts = [{ agent: builder.agent, mode: "build", ...builder, ...(consultWith ? { consultWith } : {}) }, ...reviewers.map((r) => ({ agent: r.agent, mode: "review", ...r }))];
+    const out = {};
+    for (const [k, v] of Object.entries(rest)) {
+      if (k === "acceptance") out.participants = parts;
+      out[k] = v;
+    }
+    return out;
+  });
+  return pipeline;
+}
+
 // A project as the fp plugin left it: JSON pipeline, JSON status files, old skill, German decision folder.
 function oldProject({ done = ["requirements"] } = {}) {
   const root = mkdtempSync(join(tmpdir(), "expert-teams-migrate-"));
@@ -24,7 +41,7 @@ function oldProject({ done = ["requirements"] } = {}) {
   delete pipeline.rules.language;
   delete pipeline.rules.integrationBranch;
   delete pipeline.domains;
-  write(root, `.claude/pipelines/${NAME}.json`, pipeline);
+  write(root, `.claude/pipelines/${NAME}.json`, toVersion1(pipeline));
   for (const id of done) write(root, `docs/pipeline-status/${NAME}/${id}.json`, { pipeline: NAME, phase: id, status: "done", rounds: 2 });
   write(root, `.claude/pipelines/.drafts/new-pipeline.json`, { kind: "create", stage: "team" });
   write(root, `docs/entscheidungen/${NAME}/requirements.md`, "# requirements\n");
@@ -124,4 +141,152 @@ test("a YAML pipeline without domains gets domains: [software], keeping its comm
   assert.equal(v.ok, true, JSON.stringify(v.errors));
   assert.deepEqual(v.warnings, []);
   assert.equal(migrate(["--root", root, "--apply"]).nothingToDo, true);
+});
+
+// A version 1 YAML pipeline with comments, a role in two modes and a phase with two builders.
+const V1 = `# Pipeline v1 of the expert-teams plugin.
+schemaVersion: 1
+name: v1
+description: Old layout.
+domains:
+  - software
+rules:
+  maxRounds: 2
+  delivery: commit
+  baseBranch: main
+  askHumanWhen:
+    - Prices
+phases:
+  - id: requirements
+    goal: Requirements.
+    dependsOn: []
+    # The product manager writes, the tester checks.
+    participants:
+      - agent: product-manager
+        mode: build
+        task: Write them.
+        outputs:
+          - docs/requirements.md
+        consultWith:
+          - controller
+      # A comment inside the list.
+      - agent: tester
+        mode: review
+        task: Check them.
+        consultWith:
+          - product-manager
+    acceptance:
+      - Testable.
+  - id: concept
+    goal: Concepts.
+    dependsOn:
+      - requirements
+    participants:
+      - agent: software-architect
+        mode: build
+        task: Architecture.
+        outputs:
+          - docs/architecture.md
+      - agent: ux-dataviz
+        mode: build
+        task: Views.
+        outputs:
+          - docs/views.md
+      - agent: tester
+        mode: review
+        task: Check both.
+    acceptance:
+      - Complete.
+  - id: build
+    goal: Build.
+    dependsOn:
+      - concept
+    participants:
+      - agent: backend-developer
+        mode: build
+        task: Code.
+        outputs:
+          - src/
+      - agent: backend-developer
+        mode: review
+        task: Self check.
+      - agent: tester
+        mode: review
+        task: Tests.
+    acceptance:
+      - Green.
+`;
+
+function v1Project(done = []) {
+  const root = mkdtempSync(join(tmpdir(), "expert-teams-migrate-"));
+  write(root, ".claude/expert-teams/pipelines/v1.yaml", V1);
+  for (const id of done) write(root, `docs/pipeline-status/v1/${id}.yaml`, `pipeline: v1\nphase: ${id}\nstatus: done\n`);
+  return root;
+}
+
+const validateV1 = (root) => validate(["pipeline", "v1", "--root", root, "--agents-dir", join(PLUGIN, "domains", "software", "agents")]);
+
+test("schemaVersion 1 without a split: builder, reviewers and consultants in place, comments kept", () => {
+  const root = v1Project(["concept"]);
+  const r = migrate(["--root", root, "--apply"]);
+  assert.equal(r.ok, true, JSON.stringify(r.errors));
+  assert.deepEqual(r.steps.map((s) => s.added), [["builder", "reviewers", "consultants"]]);
+  assert.ok(r.notes.some((n) => n.includes("v1/concept had 2 builders and is done, so it is not split")));
+  assert.ok(r.notes.some((n) => n.includes('"backend-developer" was builder and reviewer')));
+  const yaml = readFileSync(join(root, ".claude/expert-teams/pipelines/v1.yaml"), "utf8");
+  assert.ok(yaml.startsWith("# Pipeline v1 of the expert-teams plugin.\nschemaVersion: 2\n"));
+  assert.ok(yaml.includes("    # The product manager writes, the tester checks.\n    builder:\n      agent: product-manager\n"));
+  assert.ok(!yaml.includes("participants") && !yaml.includes("mode:") && !yaml.includes("consultWith"));
+  const p = load(yaml, { schema: JSON_SCHEMA });
+  assert.deepEqual(p.phases[0].consultants, [{ agent: "controller" }]);
+  assert.deepEqual(p.phases[1].builder.agent, "software-architect");
+  assert.deepEqual(p.phases[2].reviewers.map((x) => x.agent), ["tester"]);
+  assert.deepEqual(p.phases.map((x) => x.id), ["requirements", "concept", "build"]);
+  const v = validateV1(root);
+  assert.equal(v.ok, true, JSON.stringify(v.errors));
+  assert.equal(migrate(["--root", root]).nothingToDo, true);
+});
+
+test("a JSON status file next to a YAML pipeline becomes YAML", () => {
+  const root = v1Project(["requirements"]);
+  migrate(["--root", root, "--apply"]);
+  write(root, "docs/pipeline-status/v1/concept.json", { pipeline: "v1", phase: "concept", status: "done", rounds: 1 });
+  const r = migrate(["--root", root, "--apply"]);
+  assert.equal(r.ok, true, JSON.stringify(r.errors));
+  assert.deepEqual(r.steps.map((s) => `${s.op} ${s.from}`), ["convert docs/pipeline-status/v1/concept.json"]);
+  assert.deepEqual(validateV1(root).done, ["concept", "requirements"]);
+});
+
+test("schemaVersion 1: a phase with two builders that is not done is split", () => {
+  const root = v1Project();
+  const r = migrate(["--root", root, "--apply"]);
+  assert.equal(r.ok, true, JSON.stringify(r.errors));
+  assert.ok(r.notes.some((n) => n.includes("v1/concept had 2 builders and is split: software-architect keeps concept, ux-dataviz builds concept-ux-dataviz")));
+  const yaml = readFileSync(join(root, ".claude/expert-teams/pipelines/v1.yaml"), "utf8");
+  assert.ok(yaml.startsWith("# Pipeline v1 of the expert-teams plugin.\n"), "header kept");
+  assert.ok(yaml.includes("  # Split from concept by the migration: one builder per phase.\n  - id: concept-ux-dataviz\n"));
+  const p = load(yaml, { schema: JSON_SCHEMA });
+  assert.deepEqual(p.phases.map((x) => x.id), ["requirements", "concept", "concept-ux-dataviz", "build"]);
+  const split = p.phases[2];
+  assert.equal(split.builder.agent, "ux-dataviz");
+  assert.deepEqual(split.builder.outputs, ["docs/views.md"]);
+  assert.deepEqual(split.dependsOn, ["requirements"]);
+  assert.deepEqual(split.reviewers.map((x) => x.agent), ["tester"]);
+  assert.deepEqual(p.phases[3].dependsOn, ["concept", "concept-ux-dataviz"]);
+  const v = validateV1(root);
+  assert.equal(v.ok, true, JSON.stringify(v.errors));
+});
+
+test("schemaVersion 1 in a JSON pipeline is converted too", () => {
+  const root = oldProject();
+  const r = migrate(["--root", root, "--apply", "--language", "de"]);
+  assert.equal(r.ok, true, JSON.stringify(r.errors));
+  const p = load(readFileSync(join(root, `.claude/expert-teams/pipelines/${NAME}.yaml`), "utf8"), { schema: JSON_SCHEMA });
+  const expected = load(readFileSync(join(PLUGIN, "examples", `${NAME}.yaml`), "utf8"), { schema: JSON_SCHEMA });
+  assert.equal(p.schemaVersion, 2);
+  for (const [i, phase] of p.phases.entries()) {
+    assert.deepEqual(phase.builder, expected.phases[i].builder);
+    assert.deepEqual(phase.reviewers, expected.phases[i].reviewers);
+    assert.deepEqual(phase.consultants, expected.phases[i].consultants?.map(({ agent }) => ({ agent })));
+  }
 });
